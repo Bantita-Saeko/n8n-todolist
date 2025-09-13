@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>OAuth Callback</title>
+<style>
+  body {
+    font-family: sans-serif;
+    text-align: center;
+    margin-top: 80px;
+  }
+  h2 {
+    margin-bottom: 20px;
+  }
+  button {
+    padding: 10px 20px;
+    border: none;
+    background-color: #4285F4;
+    color: white;
+    font-size: 16px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #3367D6;
+  }
+</style>
+<script>
+function notifyParentWindow(status, data={}) {
+  if(window.opener) window.opener.postMessage({status, data},"*");
+}
+
+async function handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const state = params.get("state");
+  const error = params.get("error");
+
+  if(error) {
+    notifyParentWindow("oauth-error",{error});
+    document.getElementById("status").innerHTML = `❌ การเชื่อมต่อถูกยกเลิก: ${error}`;
+    return;
+  }
+  if(!code) {
+    notifyParentWindow("oauth-error",{error:"ไม่มี code"});
+    document.getElementById("status").innerHTML = `❌ ไม่มีโค้ดสำหรับ OAuth`;
+    return;
+  }
+
+  try {
+    const codeVerifier = sessionStorage.getItem('pkce_code_verifier');
+
+    const response = await fetch(
+      "https://n8n-todo-production.up.railway.app/webhook/oauth-callback",
+      {
+        method:"POST",
+        headers:{
+          "Authorization":"Basic "+btoa("admin:ink7484"),
+          "Content-Type":"application/json"
+        },
+        body: JSON.stringify({code,state,code_verifier:codeVerifier})
+      }
+    );
+
+    if(response.ok){
+      notifyParentWindow("oauth-success",{state});
+      document.getElementById("status").innerHTML = "✅ เข้าสู่ระบบสำเร็จแล้ว";
+    }else{
+      const text = await response.text();
+      notifyParentWindow("oauth-error",{error:text});
+      document.getElementById("status").innerHTML = `❌ ไม่สามารถส่งโค้ดไป n8n<br><pre>${text}</pre>`;
+    }
+  } catch(err){
+    notifyParentWindow("oauth-error",{error:err.message});
+    document.getElementById("status").innerHTML = `❌ Error: ${err.message}`;
+  }
+}
+
+function closeWindow() {
+  window.close();
+}
+
+window.onload = handleOAuthCallback;
+</script>
+</head>
+<body>
+  <h2 id="status">กำลังเชื่อมต่อ Google Calendar ...</h2>
+  <button onclick="closeWindow()">ปิดหน้านี้</button>
+</body>
+</html>

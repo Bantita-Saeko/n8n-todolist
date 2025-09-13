@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>เชื่อมต่อ Google Calendar</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; background:#f5f7fa; }
+    .container { background:#fff; padding:30px; border-radius:16px; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.1); max-width:400px; width:90%; }
+    button { padding:12px 24px; border:none; border-radius:8px; background:#4285F4; color:#fff; cursor:pointer; font-size:1rem; margin-top:20px; }
+    button:hover { background:#3367d6; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>เชื่อมต่อ Google Calendar</h2>
+  <p id="user-email"></p>
+  <button id="connect-btn">เชื่อมต่อบัญชี Google</button>
+</div>
+
+<script>
+const CLIENT_ID = '564269152078-8amd2iqgc6o20294u2k97jngevian8lg.apps.googleusercontent.com';
+const REDIRECT_URI = 'https://logical-factor-464404-d1.web.app/oauth-callback';
+const LIFF_ID = '2007774221-ByrYPpjD';
+
+// helper PKCE
+function base64urlEncode(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+async function sha256(plain) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(plain);
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+}
+
+async function buildPkcePair() {
+  const codeVerifier = base64urlEncode(crypto.getRandomValues(new Uint8Array(32)));
+  const hashed = await sha256(codeVerifier);
+  const codeChallenge = base64urlEncode(hashed);
+  return { codeVerifier, codeChallenge };
+}
+
+async function main() {
+  await liff.init({ liffId: LIFF_ID });
+  if(!liff.isLoggedIn()) await liff.login();
+
+  const profile = await liff.getProfile();
+  const decodedToken = await liff.getDecodedIDToken();
+  document.getElementById('user-email').innerText = `Email: ${decodedToken.email}`;
+
+  const { codeVerifier, codeChallenge } = await buildPkcePair();
+  sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+
+  const nonce = crypto.getRandomValues(new Uint8Array(16)).join('');
+  const state = btoa(JSON.stringify({ uid: profile.userId, nonce }));
+
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/calendar.events openid email',
+    access_type: 'offline',
+    prompt: 'consent',
+    state: state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256'
+  });
+
+  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+
+  document.getElementById('connect-btn').onclick = () => {
+    window.open(oauthUrl, '_blank');
+  };
+}
+
+main();
+</script>
+</body>
+</html>

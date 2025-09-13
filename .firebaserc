@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "logical-factor-464404-d1"
+  },
+  "targets": {
+    "logical-factor-464404-d1": {
+      "hosting": {
+        "default": [
+          "logical-factor-464404-d1"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
