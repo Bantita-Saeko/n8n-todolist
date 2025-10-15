@@ -1,0 +1,3829 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=คุณคือระบบช่วยแยกข้อความจากผู้ใช้ LINE เพื่อนำไปสร้างกิจกรรมใน Google Calendar\n\nโปรดอ่านข้อความที่ได้รับจาก {{$node[\"Switch: Check action\"].json[\"text\"]}}  \nแล้วแยกออกเป็น JSON ตามเงื่อนไขดังนี้:\n\n📌 รูปแบบข้อมูล:\n- ถ้ามีเพียงกิจกรรมเดียว ให้ใช้โครงสร้าง:\n{\n  \"ชื่อผู้ใช้งาน\": \"\",\n  \"หัวข้อการนัดหมาย\": \"\",\n  \"วันที่\": \"YYYY-MM-DD\",\n  \"เวลาที่เริ่ม\": \"HH:mm\",\n  \"เวลาที่สิ้นสุด\": \"HH:mm\",\n  \"รายละเอียดเพิ่มเติม\": \"\",\n  \"eventId\": \"\",\n  \"action\": \"\"\n}\n\n- ถ้ามีหลายกิจกรรม ให้ใช้ JSON Array ของแต่ละกิจกรรม โดยแต่ละ object มี key:\n{\n  \"หัวข้อ\": \"\",\n  \"เวลาเริ่ม\": \"HH:mm\",\n  \"เวลาสิ้นสุด\": \"HH:mm\",\n  \"รายละเอียด\": \"\",\n  \"eventId\": \"\",\n  \"action\": \"\"\n}\n\n📌 กฎการแปลงวันที่:\n- ถ้าเจอคำว่า “วันนี้” ให้แทนด้วยวันที่ปัจจุบัน (รูปแบบ YYYY-MM-DD)\n- ถ้าเจอคำว่า “พรุ่งนี้” ให้แทนด้วยวันที่ของวันถัดไป\n- ถ้าเจอวันที่ในรูปแบบ “วันที่ 21 ก.ย. 2568” หรือ “21 ก.ย.” ให้แปลงเป็นปี ค.ศ.\n- ถ้าไม่ได้ระบุปี → ใช้ปีปัจจุบัน\n- ถ้าเจอวันที่ในอดีต → เปลี่ยนเป็นปีหน้า\n- ใช้เดือนเป็นเลขสองหลักเสมอ เช่น \"2025-09-03\"\n- ข้อมูลต้องออกมาเป็นภาษาไทย\n\n📌 กฎการเติมค่า:\n- ถ้าขาดข้อมูลให้เว้นเป็น \"\" (string ว่าง)\n- ถ้าไม่ได้ใส่วัน → ใช้วันที่ปัจจุบัน (now)\n- ถ้าไม่ได้ใส่ปี → ใช้ปีปัจจุบัน\n- ถ้าไม่ระบุปี ให้ใช้ปีปัจจุบัน\n- ถ้าไม่ได้ใส่เวลา → เว้นว่าง\n- ถ้าเจอคำว่า \"วันนี้\" ให้แทนด้วยวันที่ปัจจุบัน (YYYY-MM-DD) (NOW)\n- ถ้าเจอคำว่า \"พรุ่งนี้\" ให้แทนด้วยวันที่ปัจจุบัน + 1 วัน (YYYY-MM-DD) (NOW+1)\n- ถ้าไม่ได้ระบุปี ให้ใช้ปีปัจจุบัน\n- ถ้าเป็นวันในอดีต ให้ปรับเป็นปีหน้า\n- ปีนี้เป็นปี 2025\n\n\n📌 กฎการกำหนด action:\n- ถ้ามี \"หัวข้อการนัดหมาย\" หรือ \"หัวข้อ\" + \"วันที่\" + \"เวลาที่เริ่ม\" + \"เวลาที่สิ้นสุด\" → \"action\": \"create\"\n- ถ้ามี \"เวลาที่เริ่ม\" และ \"เวลาที่สิ้นสุด\" แต่ไม่มีหัวข้อหรือหัวข้อเป็นค่าว่าง เช่น \"19:00-20:00\" → \"action\": \"reschedule\"\n- ถ้าไม่มีวันที่ หรือไม่มีเวลาเริ่ม/สิ้นสุด → \"action\": \"incomplete\"\n- ไม่นำข้อความของตัวอย่างมาใช้ วิเคราะห์เอง\n\n📌 ตัวอย่างข้อความที่ต้องเข้าใจ:\n- \"วันนี้ นัดประชุม เวลา 12.00-13.00 ที่ร้านอาหาร\"\n- \"พรุ่งนี้ นัดประชุมเวลา 15.00-16.00\"\n- \"นัดประชุม วันที่ 21 ก.ย. 2568 เวลา 13.00-14.00 ที่บริษัท B\"\n\n📌 ตัวอย่างผลลัพธ์ที่ถูกต้อง:\n[\n  ข้อความ: วันนี้ นัดประชุม เวลา 12:00-13:00\nJSON Output:\n{\n  \"หัวข้อ\": \"นัดประชุม\",\n  \"วันที่\": \"2025-10-04\",\n  \"เวลาที่เริ่ม\": \"12:00\",\n  \"เวลาที่สิ้นสุด\": \"13:00\",\n  \"รายละเอียด\": \"\",\n  \"action\": \"create\"\n}\n\nข้อความ: พรุ่งนี้ นัดประชุม เวลา 15:00-16:00\nJSON Output:\n{\n  \"หัวข้อ\": \"นัดประชุม\",\n  \"วันที่\": \"2025-10-05\",\n  \"เวลาที่เริ่ม\": \"15:00\",\n  \"เวลาที่สิ้นสุด\": \"16:00\",\n  \"รายละเอียด\": \"\",\n  \"action\": \"create\"\n}\n]\n\n⚠️ ส่งผลลัพธ์เป็น JSON ล้วน ๆ เท่านั้น ห้ามมีคำอธิบายหรือโค้ดเพิ่มเติม",
+        "options": {}
+      },
+      "id": "b8b26ab0-7276-4508-89a9-202c8a2328fe",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        -2928,
+        1856
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {}
+      },
+      "id": "2b99ea85-d2a0-45a3-9b48-b2b7e74ba3b8",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [
+        -2960,
+        2032
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "UOvTpeuF62UEwmkp",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่จะทำเพิ่มเติม  (/)\n- เชื่อมต่อ Google Calendar/\n- ตรวจสอบข้อมูล หากไม่ครบให้แจ้งเตือน /\n- ให้ระบบแจ้งเตือนกลับ และบอกว่าวันนี้ทำ อะไรไปแล้วและยังไม่ได้ทำอะไร /\nวันนี้ระบบสามารถใช้ได้จริงแล้วว :D",
+        "width": 300,
+        "color": 6
+      },
+      "id": "e223d63e-3058-431b-978f-8dd9a4c63309",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        16,
+        720
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่จะทำเพิ่มเติม 2 (/)\n- ป้อนข้อมูลให้น้อยลงเพื่อความสะดวกของ User /\n- คิดหน้าการเพิ่มเพื่อนของ Line-Bot /\nอัพเดทไปอีกครึ่งนึงแล้วว สู้วสู้วววว :D :D",
+        "height": 140,
+        "width": 360,
+        "color": 3
+      },
+      "id": "17ca0a8b-0ca2-4ac6-b841-b2957fdc846a",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        352,
+        720
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $('Webhook : รับข้อความการนัดหมายจาก user').item.json.body.events[0].source.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"📅 สรุปรายการนัดหมายของคุณ\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"size\": \"mega\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"📅 รายการนัดหมาย\",\n              \"weight\": \"bold\",\n              \"size\": \"lg\",\n              \"wrap\": true\n            },\n            {\n              \"type\": \"box\",\n              \"layout\": \"vertical\",\n              \"spacing\": \"sm\",\n              \"contents\": [\n                {\n                  \"type\": \"text\",\n                  \"text\": \"หัวข้อ: {{ $('Code : ล้าง format, แปลงเป็น ISO').item.json['หัวข้อการนัดหมาย'] }}\",\n                  \"wrap\": true\n                },\n                {\n                  \"type\": \"text\",\n                  \"text\": \"วันที่: {{ $('Code : ล้าง format, แปลงเป็น ISO').item.json['วันที่'] }}\",\n                  \"wrap\": true\n                },\n                {\n                  \"type\": \"text\",\n                  \"text\": \"เวลา: {{ $('Code : ล้าง format, แปลงเป็น ISO').item.json['เวลาที่เริ่ม'] }} - {{ $('Code : ล้าง format, แปลงเป็น ISO').item.json['เวลาที่สิ้นสุด'] }} น.\",\n                  \"wrap\": true\n                },\n                {\n                  \"type\": \"text\",\n                  \"text\": \"รายละเอียด: {{ $('Code : ล้าง format, แปลงเป็น ISO').item.json['รายละเอียดเพิ่มเติม'] }}\",\n                  \"wrap\": true\n                }\n              ]\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"box\",\n              \"layout\": \"horizontal\",\n              \"spacing\": \"sm\",\n              \"contents\": [\n                {\n                  \"type\": \"button\",\n                  \"style\": \"primary\",\n                  \"color\": \"#28a745\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"⏰ แจ้งล่วงหน้า\",\n                    \"data\": \"action=notify_early&eventId={{ $json.id }}\"\n                  }\n                },\n                {\n                  \"type\": \"button\",\n                  \"style\": \"secondary\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"🔔 แจ้งตรงเวลา\",\n                    \"data\": \"action=notify_exact&eventId={{ $json.id }}\"\n                  }\n                }\n              ]\n            },\n            {\n              \"type\": \"box\",\n              \"layout\": \"horizontal\",\n              \"spacing\": \"sm\",\n              \"contents\": [\n                {\n                  \"type\": \"button\",\n                  \"style\": \"primary\",\n                  \"color\": \"#007bff\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"🔄 เลื่อนนัด\",\n                    \"data\": \"action=reschedule&eventId={{ $json.id }}\"\n                  }\n                },\n                {\n                  \"type\": \"button\",\n                  \"style\": \"secondary\",\n                  \"color\": \"#dc3545\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"❌ ยกเลิกนัด\",\n                    \"data\": \"action=cancel&eventId={{ $json.id }}\"\n                  }\n                }\n              ]\n            },\n            {\n              \"type\": \"box\",\n              \"layout\": \"vertical\",\n              \"contents\": [\n                {\n                  \"type\": \"button\",\n                  \"style\": \"primary\",\n                  \"color\": \"#1E90FF\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"📅 ตารางสัปดาห์นี้\",\n                    \"data\": \"action=request_schedule&eventId={{ $json.id }}\"\n                  }\n                }\n              ]\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "ac3a11af-ab91-44ca-b822-08c883795bcb",
+      "name": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -256,
+        2240
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่ต้องแก้ไข\n- ข้อความจาก rich menu ถูกป้อนเข้ามาแทนในข้อความของ user\n- การตอบกลับอัตโนมัติของ Line เพื่อไม่ให้เกิดการ dead air \n- ต้องคัดกรองคำของ User ได้ /\n- ยกเลิกนัดหมายได้ /\n- เลื่อนนัดหมายได้\n- ป้อนหลายกิจกรรมได้ (/)\n:( :( :(",
+        "height": 280,
+        "width": 420
+      },
+      "id": "0e01ba38-9366-4988-b765-f5d7d49064ad",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -464,
+        720
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่ต้องทำ 3 \n- หากผู้ใช้งานต้องการตั้งเวลาล่วงหน้า 5 min หรือให้เตือนทันทีเลย (/)",
+        "height": 80,
+        "width": 440
+      },
+      "id": "61b3746d-2cc4-4fcf-bfbb-0506666e2ab3",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        16,
+        928
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $json.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"โปรดพิมพ์เวลาใหม่ หรือกดยกเลิก\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"📆 รับทราบค่ะ 😊\\nคุณต้องการเลื่อนนัด กรุณาระบุเวลาที่สะดวกให้ด้วยนะคะ\\n\\nเช่น เลื่อนนัดเป็นวันที่ 12 ส.ค. เวลา 14.00-15.00\\nหรือกด ‘ยกเลิก’ หากไม่ต้องการเลื่อน\",\n              \"wrap\": true\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"horizontal\",\n          \"spacing\": \"sm\",\n          \"contents\": [\n            {\n              \"type\": \"button\",\n              \"style\": \"secondary\",\n              \"color\": \"#D32F2F\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"❌ ยกเลิก\",\n                \"data\": \"action=cancel&eventId={{ $json.eventId }}\"\n              }\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "ca7e1850-a455-4f16-9659-d80cce23c530",
+      "name": "HTTP Request2 : ให้ user เขียนวันและเวลาส่งมาใหม่",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2336,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่ควรจะทำเพิ่ม (/)\n- **ถามอาจารย์ 2 ท่านว่าอยากได้ฟีเจอร์แบบไหนเพิ่ม**\n  - อาจารย์แก้วใจ :\n     - ศึกษาเพิ่มเติมว่า แอพ To do list โดยทั่วไปมีอะไรบ้าง และอะไรบ้างที่ยังไม่มี\n  - อาจารย์แอ้ :\n     - สรุป schedule ของวันนั้นๆ หรือสัปดาห์นั้นๆ \n     - สรุปงานที่ทำเสร็จแล้ว / ค้าง / เลื่อน\n     - ส่งสรุปผ่าน Line\n- **ระแบบแจ้งเตือนที่จะแจ้งเตือนไปยัง User**\n  - (Old Notify) ---> ระบบแจ้งเตือนกลับผ่านไลน์ (Line)\n  - (New Notify) ---> ระบบแจ้งเตือนผ่าน Google Calendar \n- **คำถามเพิ่มเติม**\n  - สามารถถามได้ว่า กิจกรรมล่าสุดนัดอะไรไว้\n- **ตัวของ server สามารถรันได้จริง โดยใช้ระบบ cloud**\n- **อาจารย์จะลองใช้ระยะเวลา 1 เดือน**",
+        "height": 400,
+        "width": 560,
+        "color": 6
+      },
+      "id": "03316e7e-89b0-4c9b-8921-b6a71c6114b0",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -464,
+        256
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่ to do list ทั่วไปมีดังนี้\n- เพิ่ม / ลบ / แก้ไขรายการงาน \n  - เช่น เพิ่ม “ทำการบ้าน”, ลบ “ไปห้าง”, แก้ไขชื่อหรือเวลา /\n- กำหนดวันเวลา / กำหนดเส้นตาย (Due Date) ตั้งเวลาว่าต้องทำให้เสร็จเมื่อไร /\n- ระบบแจ้งเตือน (Notification / Reminder) เตือนก่อนถึงกำหนดเวลา /\n- ติดดาว / ลำดับความสำคัญ (Priority) \n  - บอกว่างานไหนสำคัญหรือด่วนที่สุด\nแสดงงานที่ยังไม่เสร็จ / ซ่อนงานที่ทำแล้ว\n- แสดงแบบรายวัน รายสัปดาห์ รายเดือน (View mode)\n  -  เช่น ตาราง, ปฏิทิน, หรือ list\n\n",
+        "height": 440,
+        "width": 560,
+        "color": 3
+      },
+      "id": "700a27c7-8c4a-4e58-9b9a-5b4a6bd1fd46",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        128,
+        224
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่ to do list ทั่วไปอยากให้มี\n- AI ช่วยจัดตารางอัตโนมัติ (Smart Scheduling) \n  - เช่น ถ้ามีเวลาว่าง 2 ชม. ในวันพรุ่งนี้ AI จัดการใส่ task ลงช่องว่างให้เลย\n- วิเคราะห์พฤติกรรมการทำงาน (Task Analytics) \n  - บอกว่าเราทำงานช้า/เร็วแค่ไหน งานไหนชอบเลื่อน\n- ระบบติดตามนิสัย/เป้าหมาย (Habit Tracker / Goal Progress) \n  - เช่น อยากอ่านหนังสือทุกวัน → ให้ track ว่าทำได้กี่วันต่อเนื่อง\n- เชื่อมต่อกับผู้ช่วยส่วนตัว (LINE Bot, Google Assistant, Alexa) \n  - เช่น พิมพ์ใน LINE แล้ว To Do List ก็อัปเดตอัตโนมัติ\n- แชร์รายการกับคนอื่น / ทำร่วมกัน (Collaborative Task) \n  - เช่น ทำงานกลุ่ม แชร์รายการให้เพื่อน เห็นความคืบหน้าร่วมกัน\n- ระบบแจ้งเตือนซ้ำแบบยืดหยุ่น (Flexible Recurring Tasks) \n  - เช่น “ทุกวันเว้นวัน”, “ทุกเดือนวันจันทร์แรก”\n- แนบไฟล์ / รูปภาพ / เสียง / ลิงก์กับ Task เพื่อใช้ประกอบกับงานนั้น \n  - เช่น เอกสารประกอบ ประชุม\n- สรุปรายวัน/สัปดาห์ผ่านข้อความ / Email / LINE Bot บอกรายการที่ยังไม่เสร็จ หรือสิ่งที่ทำสำเร็จแล้ว\n- โหมดโฟกัส / Pomodoro ช่วยให้มีสมาธิขณะทำงาน \n  - เช่น จับเวลา 25 นาทีพัก 5 นาที\n- บันทึกความรู้สึก / โน้ตประกอบงาน \n  - เช่น จดว่า งานนี้รู้สึกยังไง, ยากตรงไหน",
+        "height": 560,
+        "width": 580,
+        "color": 7
+      },
+      "id": "16d82cfd-33e1-44e5-ac32-640b7d5c0fcc",
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        736,
+        96
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bot-line",
+        "responseMode": "=onReceived",
+        "options": {}
+      },
+      "id": "cd5142ae-e922-43d7-8729-8d98563edfb4",
+      "name": "Webhook : รับข้อความการนัดหมายจาก user",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -5168,
+        1056
+      ],
+      "webhookId": "8964b0e2-ea33-48c7-ba67-3b4ca787e1d8",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "oauth-callback",
+        "authentication": "basicAuth",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "f595cf57-5aa7-4b17-8748-99d267ddb47f",
+      "name": "Webhook : รับข้อมูลการ Login จาก User",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -3696,
+        2192
+      ],
+      "webhookId": "15e9d09c-b508-4729-b07c-62c6f4dc8c6c",
+      "typeVersion": 2,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "DvgjJFto23w1WH2I",
+          "name": "admin:ink7484"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "to",
+              "value": "={{$json.line_user_id}}"
+            },
+            {
+              "name": "messages",
+              "value": "={{$json.messages}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f4b68807-7a24-4bea-976a-a7b7134a7b5c",
+      "name": "HTTP Request2 : ข้อความเตือน user4",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1088,
+        896
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่จะทำเพิ่มเติม 3\n- สามารถพิมพ์ยกเลิอกและให้ user เลือกดูว่าจะยกเลิกอันไหนได้\n- ถามได้ว่า กิจกรรมล่าสุด คืออะไร",
+        "height": 140,
+        "width": 360,
+        "color": 4
+      },
+      "id": "4ee0c28f-de66-43a3-ab76-b3b4e98cbbc9",
+      "name": "Sticky Note7",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        752,
+        720
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่จะทำเพิ่มเติม 4\n- ทำบทที่ 1, 2\n- ลองให้เพื่อนทดลองใช้ 5 คน\n- ทำ Sequent Diagram",
+        "height": 144,
+        "width": 280,
+        "color": 2
+      },
+      "id": "adff9317-c988-42c9-aa6a-3de60ca1d8b0",
+      "name": "Sticky Note8",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1136,
+        720
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "=application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "code",
+              "value": "={{ $json.body.code }}"
+            },
+            {
+              "name": "client_id",
+              "value": "=564269152078-8amd2iqgc6o20294u2k97jngevian8lg.apps.googleusercontent.com"
+            },
+            {
+              "name": "client_secret",
+              "value": "=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"
+            },
+            {
+              "name": "redirect_uri",
+              "value": "=https://logical-factor-464404-d1.web.app/oauth-callback"
+            },
+            {
+              "name": "grant_type",
+              "value": "=authorization_code"
+            },
+            {
+              "name": "code_verifier",
+              "value": "={{ $json.body.code_verifier }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e96d6488-35ca-4c8a-ae64-16c48f5ea748",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -3264,
+        2192
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO google_tokens (line_user_id, access_token, refresh_token, expires_in, scope, token_type, created_at)\nVALUES (\n  '{{ $node[\"Code : รับค่า UserID\"].json.line_user_id }}',\n  '{{ $json.access_token }}',\n  '{{ $json.refresh_token }}',\n  {{ $json.expires_in }},\n  '{{ $json.scope }}',\n  '{{ $json.token_type }}',\n  NOW()\n)\nON DUPLICATE KEY UPDATE\n  access_token = VALUES(access_token),\n  refresh_token = VALUES(refresh_token),\n  expires_in = VALUES(expires_in),\n  scope = VALUES(scope),\n  token_type = VALUES(token_type),\n  created_at = NOW();\n",
+        "options": {}
+      },
+      "id": "b53ad945-4f5a-4646-a59b-994bb63d5411",
+      "name": "Execute a SQL query",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -3008,
+        2192
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function base64Decode(str) {\n  if (!str) return null;\n  return Buffer.from(str, 'base64').toString('utf-8');\n}\n\nreturn items.map(item => {\n  const stateEncoded = item.json.body?.state; // เข้าถึง state ใน body\n\n  if (!stateEncoded) {\n    console.log('Missing state in item:', item.json);\n    return item;\n  }\n\n  let stateDecoded;\n  try {\n    const decodedStr = base64Decode(stateEncoded);\n    stateDecoded = JSON.parse(decodedStr);\n  } catch (error) {\n    throw new Error('Failed to decode or parse state: ' + error.message);\n  }\n\n  if (!stateDecoded.uid) {\n    throw new Error('uid not found in decoded state');\n  }\n\n  item.json.line_user_id = stateDecoded.uid;\n\n  return item;\n});\n"
+      },
+      "id": "d4cf916f-cc01-4fcc-8582-e5d643a81e11",
+      "name": "Code : รับค่า UserID",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -3488,
+        2192
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event จาก Webhook Node ที่ชื่อ 'Webhook : รับข้อความการนัดหมายจาก user'\nconst webhook = $('Webhook : รับข้อความการนัดหมายจาก user').first();\n\nlet userId = \"empty\";\nif (webhook?.json?.body?.events && webhook.json.body.events[0]?.source?.userId) {\n  userId = webhook.json.body.events[0].source.userId;\n}\n\n// คำนวณวันจันทร์และวันอาทิตย์ของสัปดาห์นี้\nconst now = new Date();\nconst dayOfWeek = now.getDay(); // 0=อาทิตย์, 1=จันทร์, ...\nconst diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\n\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - diffToMonday);\nmonday.setHours(0, 0, 0, 0);\n\nconst sunday = new Date(monday);\nsunday.setDate(monday.getDate() + 6);\nsunday.setHours(23, 59, 59, 999);\n\n// คืนค่าผลลัพธ์ให้ n8n\nreturn [{\n  json: {\n    line_user_id: userId,\n    timeMin: monday.toISOString(),\n    timeMax: sunday.toISOString(),\n  }\n}];\n"
+      },
+      "id": "8d260903-5e32-4490-a13b-6cb590d742d4",
+      "name": "Code : ดึง UserID, TimeMin, TimeMax1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2896,
+        0
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event จาก Webhook Node ที่ชื่อ 'Webhook : รับข้อความการนัดหมายจาก user'\nconst webhook = $('Webhook : รับข้อความการนัดหมายจาก user').first();\n\nlet userId = \"empty\";\nif (webhook?.json?.body?.events && webhook.json.body.events[0]?.source?.userId) {\n  userId = webhook.json.body.events[0].source.userId;\n}\n\n// คำนวณวันจันทร์และวันอาทิตย์ของสัปดาห์นี้\nconst now = new Date();\nconst dayOfWeek = now.getDay(); // 0=อาทิตย์, 1=จันทร์, ...\nconst diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\n\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - diffToMonday);\nmonday.setHours(0, 0, 0, 0);\n\nconst sunday = new Date(monday);\nsunday.setDate(monday.getDate() + 6);\nsunday.setHours(23, 59, 59, 999);\n\n// คืนค่าผลลัพธ์ให้ n8n\nreturn [{\n  json: {\n    line_user_id: userId,\n    timeMin: monday.toISOString(),\n    timeMax: sunday.toISOString(),\n  }\n}];\n"
+      },
+      "id": "ae94ea63-69b5-432a-8e72-efddd2f8bc75",
+      "name": "Code : ดึง UserID, TimeMin, TimeMax2",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2896,
+        208
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event จาก Webhook Node ที่ชื่อ 'Webhook : รับข้อความการนัดหมายจาก user'\nconst webhook = $('Webhook : รับข้อความการนัดหมายจาก user').first();\n\nlet userId = \"empty\";\nif (webhook?.json?.body?.events && webhook.json.body.events[0]?.source?.userId) {\n  userId = webhook.json.body.events[0].source.userId;\n}\n\n// คำนวณวันจันทร์และวันอาทิตย์ของสัปดาห์นี้\nconst now = new Date();\nconst dayOfWeek = now.getDay(); // 0=อาทิตย์, 1=จันทร์, ...\nconst diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\n\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - diffToMonday);\nmonday.setHours(0, 0, 0, 0);\n\nconst sunday = new Date(monday);\nsunday.setDate(monday.getDate() + 6);\nsunday.setHours(23, 59, 59, 999);\n\n// คืนค่าผลลัพธ์ให้ n8n\nreturn [{\n  json: {\n    line_user_id: userId,\n    timeMin: monday.toISOString(),\n    timeMax: sunday.toISOString(),\n  }\n}];\n"
+      },
+      "id": "35ef9aed-7201-4014-8870-526068954a65",
+      "name": "Code : ดึง UserID, TimeMin, TimeMax3",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2896,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event จาก Webhook Node ที่ชื่อ 'Webhook : รับข้อความการนัดหมายจาก user'\nconst webhook = $('Webhook : รับข้อความการนัดหมายจาก user').first();\n\nlet userId = \"empty\";\nif (webhook?.json?.body?.events && webhook.json.body.events[0]?.source?.userId) {\n  userId = webhook.json.body.events[0].source.userId;\n}\n\n// คำนวณวันจันทร์และวันอาทิตย์ของสัปดาห์นี้\nconst now = new Date();\nconst dayOfWeek = now.getDay(); // 0=อาทิตย์, 1=จันทร์, ...\nconst diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\n\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - diffToMonday);\nmonday.setHours(0, 0, 0, 0);\n\nconst sunday = new Date(monday);\nsunday.setDate(monday.getDate() + 6);\nsunday.setHours(23, 59, 59, 999);\n\n// คืนค่าผลลัพธ์ให้ n8n\nreturn [{\n  json: {\n    line_user_id: userId,\n    timeMin: monday.toISOString(),\n    timeMax: sunday.toISOString(),\n  }\n}];\n"
+      },
+      "id": "a029b4eb-fb76-4d8b-8ad6-b8e91e70adef",
+      "name": "Code : ดึง UserID, TimeMin, TimeMax4",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2896,
+        624
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "670d48ad-9471-4118-9ad2-2d0e760b54df",
+      "name": "Execute a SQL query : ดึง access token1",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -2624,
+        0
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึงข้อมูล events จาก input node (HTTP Request หรือ node ที่ได้ events มา)\nconst events = items[0].json.items || [];\n\n// ดึง line_user_id จาก node ชื่อ \"Code : ดึง userId และช่วงเวลา\"\nconst lineUserId = $node[\"Code : ดึง UserID, TimeMin, TimeMax1\"].json.line_user_id || null;\n\nfunction toISOWithTimezone(date, offsetHours = 7) {\n  const tzOffset = offsetHours * 60;\n  const localDate = new Date(date.getTime() + tzOffset * 60 * 1000);\n  const year = localDate.getUTCFullYear();\n  const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');\n  const day = String(localDate.getUTCDate()).padStart(2, '0');\n  const hour = String(localDate.getUTCHours()).padStart(2, '0');\n  const minute = String(localDate.getUTCMinutes()).padStart(2, '0');\n  const second = String(localDate.getUTCSeconds()).padStart(2, '0');\n  return `${year}-${month}-${day}T${hour}:${minute}:${second}+07:00`;\n}\n\n// กรอง event ที่มี start.dateTime และ end.dateTime\nconst validEvents = events.filter(event => event.start && event.start.dateTime && event.end && event.end.dateTime);\n\nif (validEvents.length === 0) {\n  return [{ json: {} }];\n}\n\n// กิจกรรมล่าสุด (เวลาที่เริ่มมากที่สุด)\nconst latestEvent = validEvents.reduce((a, b) =>\n  new Date(a.start.dateTime) > new Date(b.start.dateTime) ? a : b\n);\n\nconst startTime = new Date(latestEvent.start.dateTime);\nconst endTime = new Date(latestEvent.end.dateTime);\n\nreturn [{\n  json: {\n    line_user_id: lineUserId,\n    title: latestEvent.summary || \"ไม่มีหัวข้อ\",\n    eventId: latestEvent.id || null,\n    startTime: toISOWithTimezone(startTime),\n    endTime: toISOWithTimezone(endTime)\n  }\n}];\n"
+      },
+      "id": "cc0e360d-cb9d-4602-a78d-ad3283b7de87",
+      "name": "Code : เลือก EventID ล่าสุด1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2096,
+        0
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const userId = $('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events[0].source.userId\n\nconst after = $input.first().json.notifyAt;\n\nreturn [\n  {\n    json: {\n      userId,\n      after\n    }\n  }\n];\n"
+      },
+      "id": "fc9bfa43-5f2c-45c1-bcdd-648c1149fb2c",
+      "name": "Code : ดึง UserID1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1328,
+        0
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={{ $node['Code : ดึง UserID, TimeMin, TimeMax1'].json.timeMin }}&timeMax={{ $node['Code : ดึง UserID, TimeMin, TimeMax1'].json.timeMax }}&singleEvents=true&orderBy=startTime",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e55faf57-7aeb-496d-9792-a62dc5be0978",
+      "name": "HTTP Request : GetAll to Calendar1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2352,
+        0
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events/{{ $node['Code : เลือก EventID ล่าสุด1'].json.eventId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"summary\": \"{{ $node['Code : เลือก EventID ล่าสุด1'].json.title }}\",\n  \"start\": {\n    \"dateTime\": \"{{ $node['Code : เลือก EventID ล่าสุด1'].json.startTime }}\",\n    \"timeZone\": \"Asia/Bangkok\"\n  },\n  \"end\": {\n    \"dateTime\": \"{{ $node['Code : เลือก EventID ล่าสุด1'].json.endTime }}\",\n    \"timeZone\": \"Asia/Bangkok\"\n  },\n  \"reminders\": {\n    \"useDefault\": false,\n    \"overrides\": [\n      { \"method\": \"popup\", \"minutes\": 60 },\n      { \"method\": \"popup\", \"minutes\": 10 }\n    ]\n  }\n}\n",
+        "options": {}
+      },
+      "id": "29d881a4-4411-4741-9fbf-40cdd1f74dfb",
+      "name": "HTTP Request : Update to Calendar1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1584,
+        0
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.output || \"\";\nconsole.log(\"Raw input from AI Agent:\", raw);\n\nconst clean = raw.replace(/```json|```|\\n/g, \"\").trim();\nconsole.log(\"Cleaned input:\", clean);\n\nlet parsed;\ntry {\n  parsed = JSON.parse(clean);\n} catch (err) {\n  throw new Error(\"แปลง JSON ไม่ได้: \" + err.message);\n}\n\nconst currentYear = new Date().getFullYear();\n\n// เติมวันที่ ถ้าไม่มี\nif (!parsed[\"วันที่\"]) {\n  const today = new Date();\n  const yyyy = today.getFullYear();\n  const mm = String(today.getMonth() + 1).padStart(2, '0');\n  const dd = String(today.getDate()).padStart(2, '0');\n  parsed[\"วันที่\"] = `${yyyy}-${mm}-${dd}`;\n}\nconsole.log(\"วันที่:\", parsed[\"วันที่\"]);\n\n// ฟังก์ชันเติมวินาทีให้เวลา\nconst formatTime = (time) => {\n  if (!time) return null;\n  time = time.trim();\n  return time.length === 5 ? time + \":00\" : time;\n};\n\n// รองรับชื่อฟิลด์เวลาต่างๆ\nconst startTime = parsed[\"เวลาเริ่ม\"] || parsed[\"เวลาที่เริ่ม\"] || parsed[\"start_time\"] || null;\nconst endTime = parsed[\"เวลาสิ้นสุด\"] || parsed[\"เวลาที่สิ้นสุด\"] || parsed[\"end_time\"] || null;\n\nconsole.log(\"เวลาเริ่ม:\", startTime);\nconsole.log(\"เวลาสิ้นสุด:\", endTime);\n\n// เติม start_datetime และ end_datetime ถ้ายังไม่มี\nif (!parsed[\"start_datetime\"] && parsed[\"วันที่\"] && startTime) {\n  parsed[\"start_datetime\"] = `${parsed[\"วันที่\"]}T${formatTime(startTime)}`;\n}\nif (!parsed[\"end_datetime\"] && parsed[\"วันที่\"] && endTime) {\n  parsed[\"end_datetime\"] = `${parsed[\"วันที่\"]}T${formatTime(endTime)}`;\n}\n\nconsole.log(\"start_datetime:\", parsed[\"start_datetime\"]);\nconsole.log(\"end_datetime:\", parsed[\"end_datetime\"]);\n\nreturn [{ json: parsed }];\n"
+      },
+      "id": "1689522f-5cee-4e99-bdb4-524fcbe09e4a",
+      "name": "Code : ล้าง format, แปลงเป็น ISO",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2576,
+        1856
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $('Webhook : รับข้อความการนัดหมายจาก user').item.json.body.events[0].source.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"โอ๊ะ❗️ดูเหมือนจะขาดข้อมูลบางส่วน รบกวนกรอกเพิ่มหน่อยค่ะ🙏✨\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "909bcccc-65c0-4484-871f-4868437fdad2",
+      "name": "HTTP Request : ข้อมูลไม่ครบ",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -912,
+        1696
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  if ($('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events && $('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events[0].source.userId) {\n    item.json.line_user_id = $('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events[0].source.userId;\n  } else {\n    item.json.line_user_id = \"empty\";\n  }\n  return item;\n});\n"
+      },
+      "id": "d0df49ac-bc3e-438d-9f9b-597c08bcc5c6",
+      "name": "Code : Extract LINE User ID",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -912,
+        2240
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\n  AND created_at + INTERVAL expires_in SECOND > NOW()\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "bb752b3e-6ade-4ac2-b579-43af74c47b39",
+      "name": "Execute a SQL query : Get Valid Access Token",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -688,
+        2240
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"summary\": \"{{ $('Code : ล้าง format, แปลงเป็น ISO').item.json['หัวข้อการนัดหมาย'] }}\",\n  \"description\": \"{{ $('Code : ล้าง format, แปลงเป็น ISO').item.json['รายละเอียดเพิ่มเติม'] }}\",\n  \"start\": {\n    \"dateTime\": \"{{ $node['Code : ครบ | ไม่ครบ'].json.startISO }}\",\n    \"timeZone\": \"Asia/Bangkok\"\n  },\n  \"end\": {\n    \"dateTime\": \"{{ $node['Code : ครบ | ไม่ครบ'].json.endISO }}\",\n    \"timeZone\": \"Asia/Bangkok\"\n  }\n}",
+        "options": {}
+      },
+      "id": "53150e0a-883a-4876-9b4f-7e618ab9181f",
+      "name": "HTTP Request : Create to Calendar1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -480,
+        2240
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $json.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"⏳ แจ้งเตือนนัดหมาย\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"✅ รับทราบการนัดหมายแล้วค่ะ \\n สถานะ: ⏰แจ้งล่วงหน้า\",\n              \"wrap\": true,\n              \"weight\": \"bold\",\n              \"size\": \"md\"\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"sm\",\n          \"contents\": [\n            {\n              \"type\": \"box\",\n              \"layout\": \"horizontal\",\n              \"spacing\": \"sm\",\n              \"contents\": [\n                {\n                  \"type\": \"button\",\n                  \"style\": \"primary\",\n                  \"color\": \"#2196F3\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"🔄 เลื่อนนัด\",\n                    \"data\": \"action=reschedule\"\n                  }\n                },\n                {\n                  \"type\": \"button\",\n                  \"style\": \"secondary\",\n                  \"color\": \"#D32F2F\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"❌ ยกเลิกนัด\",\n                    \"data\": \"action=cancel\"\n                  }\n                }\n              ]\n            },\n            {\n              \"type\": \"button\",\n              \"style\": \"primary\",\n              \"color\": \"#2196F3\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"📅 ตารางสัปดาห์นี้\",\n                \"data\": \"action=request_week_schedule\"\n              }\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "523901c0-3a53-4d3f-9f60-4e14088fa9d3",
+      "name": "HTTP Request : แจ้งสถานะกับ User1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1088,
+        0
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึงข้อมูล events จาก input node (HTTP Request หรือ node ที่ได้ events มา)\nconst events = items[0].json.items || [];\n\n// ดึง line_user_id จาก node ชื่อ \"Code : ดึง userId และช่วงเวลา\"\nconst lineUserId = $node[\"Code : ดึง UserID, TimeMin, TimeMax1\"].json.line_user_id || null;\n\nfunction toISOWithTimezone(date, offsetHours = 7) {\n  const tzOffset = offsetHours * 60;\n  const localDate = new Date(date.getTime() + tzOffset * 60 * 1000);\n  const year = localDate.getUTCFullYear();\n  const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');\n  const day = String(localDate.getUTCDate()).padStart(2, '0');\n  const hour = String(localDate.getUTCHours()).padStart(2, '0');\n  const minute = String(localDate.getUTCMinutes()).padStart(2, '0');\n  const second = String(localDate.getUTCSeconds()).padStart(2, '0');\n  return `${year}-${month}-${day}T${hour}:${minute}:${second}+07:00`;\n}\n\n// กรอง event ที่มี start.dateTime และ end.dateTime\nconst validEvents = events.filter(event => event.start && event.start.dateTime && event.end && event.end.dateTime);\n\nif (validEvents.length === 0) {\n  return [{ json: {} }];\n}\n\n// กิจกรรมล่าสุด (เวลาที่เริ่มมากที่สุด)\nconst latestEvent = validEvents.reduce((a, b) =>\n  new Date(a.start.dateTime) > new Date(b.start.dateTime) ? a : b\n);\n\nconst startTime = new Date(latestEvent.start.dateTime);\nconst endTime = new Date(latestEvent.end.dateTime);\n\nreturn [{\n  json: {\n    line_user_id: lineUserId,\n    title: latestEvent.summary || \"ไม่มีหัวข้อ\",\n    eventId: latestEvent.id || null,\n    startTime: toISOWithTimezone(startTime),\n    endTime: toISOWithTimezone(endTime)\n  }\n}];\n"
+      },
+      "id": "ab9c3492-b294-4e8a-ba26-1118ed91fac5",
+      "name": "Code : เลือก EventID ล่าสุด2",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2096,
+        208
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events ?timeMin={{ $node[\"Code : ดึง UserID, TimeMin, TimeMax1\"].json.timeMin }} &timeMax={{ $node[\"Code : ดึง UserID, TimeMin, TimeMax1\"].json.timeMax }} &singleEvents=true &orderBy=startTime",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "256ef9ca-0588-4073-9440-28a8bd5c0efc",
+      "name": "HTTP Request : GetAll to Calendar2",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2336,
+        208
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "6fe34d67-f5a5-4f03-a872-3c24493aa624",
+      "name": "Execute a SQL query : ดึง access token2",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -1824,
+        0
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "8092c217-beca-4abc-9da5-2ed84cb12e70",
+      "name": "Execute a SQL query : ดึง access token3",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -2624,
+        208
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "5022238d-d10a-43be-b004-f5ed6fdb0d4f",
+      "name": "Execute a SQL query : ดึง access token4",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -1840,
+        208
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const userId = $('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events[0].source.userId\n\nconst after = $input.first().json.notifyAt;\n\nreturn [\n  {\n    json: {\n      userId,\n      after\n    }\n  }\n];\n"
+      },
+      "id": "e82f8a83-ba0e-4615-bdff-4e6745ff808c",
+      "name": "Code : ดึง UserID2",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1328,
+        208
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $json.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"⏳ แจ้งเตือนนัดหมาย\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"✅ รับทราบการนัดหมายแล้วค่ะ \\n สถานะ: 🔔ตรงเวลา\",\n              \"wrap\": true,\n              \"weight\": \"bold\",\n              \"size\": \"md\"\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"sm\",\n          \"contents\": [\n            {\n              \"type\": \"box\",\n              \"layout\": \"horizontal\",\n              \"spacing\": \"sm\",\n              \"contents\": [\n                {\n                  \"type\": \"button\",\n                  \"style\": \"primary\",\n                  \"color\": \"#2196F3\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"🔄 เลื่อนนัด\",\n                    \"data\": \"action=reschedule\"\n                  }\n                },\n                {\n                  \"type\": \"button\",\n                  \"style\": \"secondary\",\n                  \"color\": \"#D32F2F\",\n                  \"action\": {\n                    \"type\": \"postback\",\n                    \"label\": \"❌ ยกเลิกนัด\",\n                    \"data\": \"action=cancel\"\n                  }\n                }\n              ]\n            },\n            {\n              \"type\": \"button\",\n              \"style\": \"primary\",\n              \"color\": \"#2196F3\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"📅 ตารางสัปดาห์นี้\",\n                \"data\": \"action=request_week_schedule\"\n              }\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "ccf9aa15-85cc-4efd-8fcc-b5209dfb7afb",
+      "name": "HTTP Request : แจ้งสถานะกับ User2",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1088,
+        208
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeMin",
+              "value": "={{ $node['Code : ดึง UserID, TimeMin, TimeMax4'].json.timeMin }}"
+            },
+            {
+              "name": "timeMax",
+              "value": "={{ $node['Code : ดึง UserID, TimeMin, TimeMax4'].json.timeMax }}"
+            },
+            {
+              "name": "singleEvents",
+              "value": "true"
+            },
+            {
+              "name": "=orderBy",
+              "value": "startTime"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b40a4610-04f9-4d20-8f2d-a1c02fd0ed29",
+      "name": "HTTP Request : GetAll to Calendar",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2336,
+        624
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "e56b69ba-981f-49bc-8ef8-35c4fc971001",
+      "name": "Execute a SQL query : ดึง access token",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -2624,
+        624
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "4ae6c74c-c453-4788-b34f-ead9fc608548",
+      "name": "Execute a SQL query : ดึง access token5",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -1840,
+        624
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const userId = $('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events[0].source.userId\n\nconst after = $input.first().json.notifyAt;\n\nreturn [\n  {\n    json: {\n      userId,\n      after\n    }\n  }\n];\n"
+      },
+      "id": "5735efb6-f153-4270-b1ff-8a2977d07ee2",
+      "name": "Code : ดึง UserID",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1328,
+        624
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events/{{$node[\"Code : เลือก EventID ล่าสุด3\"].json.eventId}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ad16bb9b-3abb-40b8-b857-a01788d587f0",
+      "name": "HTTP Request : Delete to Calendar",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1584,
+        624
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $json.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"⏳ แจ้งเตือนนัดหมาย\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"ยกเลิกนัดเรียบร้อยค่ะ 🙆‍♀️ หากต้องการนัดหมายใหม่ แจ้งได้เลยนะคะ\",\n              \"wrap\": true,\n              \"weight\": \"bold\",\n              \"size\": \"md\"\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"sm\",\n          \"contents\": [\n            {\n              \"type\": \"button\",\n              \"style\": \"primary\",\n              \"color\": \"#2196F3\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"📅 ตารางสัปดาห์นี้\",\n                \"data\": \"action=request_week_schedule\"\n              }\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "6c499391-ae76-467d-89ab-1e842ec8253e",
+      "name": "HTTP Request : แจ้งสถานะกับ User",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1088,
+        624
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=DELETE https://www.googleapis.com/calendar/v3/calendars/primary/events/{{ $node['Code : เลือก EventID ล่าสุด2'].json.eventId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"summary\": \"{{ $node['Code : เลือก EventID ล่าสุด1'].json.title }}\",\n  \"start\": {\n    \"dateTime\": \"{{ $node['Code : เลือก EventID ล่าสุด1'].json.startTime }}\",\n    \"timeZone\": \"Asia/Bangkok\"\n  },\n  \"end\": {\n    \"dateTime\": \"{{ $node['Code : เลือก EventID ล่าสุด1'].json.endTime }}\",\n    \"timeZone\": \"Asia/Bangkok\"\n  },\n  \"reminders\": {\n    \"useDefault\": false,\n    \"overrides\": [\n      { \"method\": \"popup\", \"minutes\": 60 },\n      { \"method\": \"popup\", \"minutes\": 10 }\n    ]\n  }\n}\n",
+        "options": {}
+      },
+      "id": "11d00e65-abc2-4008-b792-55e056466076",
+      "name": "HTTP Request : Update to Calendar2",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1584,
+        208
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึงข้อมูล events จาก input node (HTTP Request หรือ node ที่ได้ events มา)\nconst events = items[0].json.items || [];\n\n// ดึง line_user_id จาก node ชื่อ \"Code : ดึง userId และช่วงเวลา\"\nconst lineUserId = $node['Code : ดึง UserID, TimeMin, TimeMax4'].json.line_user_id || null;\n\nfunction toISOWithTimezone(date, offsetHours = 7) {\n  const tzOffset = offsetHours * 60;\n  const localDate = new Date(date.getTime() + tzOffset * 60 * 1000);\n  const year = localDate.getUTCFullYear();\n  const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');\n  const day = String(localDate.getUTCDate()).padStart(2, '0');\n  const hour = String(localDate.getUTCHours()).padStart(2, '0');\n  const minute = String(localDate.getUTCMinutes()).padStart(2, '0');\n  const second = String(localDate.getUTCSeconds()).padStart(2, '0');\n  return `${year}-${month}-${day}T${hour}:${minute}:${second}+07:00`;\n}\n\n// กรอง event ที่มี start.dateTime และ end.dateTime\nconst validEvents = events.filter(event => event.start && event.start.dateTime && event.end && event.end.dateTime);\n\nif (validEvents.length === 0) {\n  return [{ json: {} }];\n}\n\n// กิจกรรมล่าสุด (เวลาที่เริ่มมากที่สุด)\nconst latestEvent = validEvents.reduce((a, b) =>\n  new Date(a.start.dateTime) > new Date(b.start.dateTime) ? a : b\n);\n\nconst startTime = new Date(latestEvent.start.dateTime);\nconst endTime = new Date(latestEvent.end.dateTime);\n\nreturn [{\n  json: {\n    line_user_id: lineUserId,\n    title: latestEvent.summary || \"ไม่มีหัวข้อ\",\n    eventId: latestEvent.id || null,\n    startTime: toISOWithTimezone(startTime),\n    endTime: toISOWithTimezone(endTime)\n  }\n}];\n"
+      },
+      "id": "8c4f7a1f-3575-4286-aaf9-fdb8c5bdffb6",
+      "name": "Code : เลือก EventID ล่าสุด3",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2096,
+        624
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "d6a45339-62b9-43dd-86b8-d11c4d8b7336",
+      "name": "Execute a SQL query : ดึง access token6",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -2624,
+        976
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeMin",
+              "value": "={{$node[\"Code : ดึง UserID, TimeMin, TimeMax, Week5\"].json.timeMin}}"
+            },
+            {
+              "name": "timeMax",
+              "value": "={{$node[\"Code : ดึง UserID, TimeMin, TimeMax, Week5\"].json.timeMax}}"
+            },
+            {
+              "name": "singleEvents",
+              "value": "true"
+            },
+            {
+              "name": "orderBy",
+              "value": "startTime"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "94e1865d-93c6-4d61-a880-376650e2c915",
+      "name": "HTTP Request : GetAll to Calendar3",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1584,
+        896
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "d7f79a14-5a4f-45c5-b020-b5f8e34b48db",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{$node[\"HTTP Request : GetAll to Calendar4\"].json[\"items\"] ? $node[\"HTTP Request : GetAll to Calendar4\"].json[\"items\"].length : 0}}\n",
+              "rightValue": "=0"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a2207559-1cb5-40e1-8c76-be52a7983031",
+      "name": "If : ตรวจสอบมีนัดหรือไม่มี",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -2096,
+        976
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={{ $node['Code : ดึง UserID, TimeMin, TimeMax, Week5'].json.timeMin }}&timeMax={{ $node['Code : ดึง UserID, TimeMin, TimeMax, Week5'].json.timeMax }}&singleEvents=true&orderBy=startTime",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "036f410e-02c5-4de2-b06b-272a80c38655",
+      "name": "HTTP Request : GetAll to Calendar4",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2336,
+        976
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event จาก Webhook Node ที่ชื่อ 'Webhook : รับข้อความการนัดหมายจาก user'\nconst webhook = $('Webhook : รับข้อความการนัดหมายจาก user').first();\n\nlet userId = \"empty\";\nif (webhook?.json?.body?.events && webhook.json.body.events[0]?.source?.userId) {\n  userId = webhook.json.body.events[0].source.userId;\n}\n\n// คำนวณวันจันทร์และวันอาทิตย์ของสัปดาห์นี้\nconst now = new Date();\nconst dayOfWeek = now.getDay(); // 0=อาทิตย์, 1=จันทร์, ...\nconst diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\n\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - diffToMonday);\nmonday.setHours(0, 0, 0, 0);\n\nconst sunday = new Date(monday);\nsunday.setDate(monday.getDate() + 6);\nsunday.setHours(23, 59, 59, 999);\n\n// คืนค่าผลลัพธ์ให้ n8n\nreturn [{\n  json: {\n    line_user_id: userId,\n    timeMin: monday.toISOString(),\n    timeMax: sunday.toISOString(),\n  }\n}];\n"
+      },
+      "id": "f7540901-1f65-4a4c-b22e-d907c0b502b4",
+      "name": "Code : ดึง UserID, TimeMin, TimeMax, Week5",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2896,
+        976
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $('Webhook : รับข้อความการนัดหมายจาก user').item.json.body.events[0].source.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"❌📆ไม่มีนัดหมายภายในสัปดาห์นี้ค่ะ\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "a033f408-b81b-498a-86bc-e8285267bd4b",
+      "name": "HTTP Request : ไม่มีกิจกรรมนัดหมายใน week นี้",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1840,
+        1088
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event list จาก response Google Calendar API\nconst calendarResponse = $node[\"HTTP Request : GetAll to Calendar3\"].json;\nconst events = calendarResponse.items || [];  // ถ้าไม่มี items ให้เป็น []\n\nconst now = new Date();\n\nlet countDone = 0;\nlet countPending = 0;\nlet countPostponed = 0;\n\nfunction formatThaiFullDate(dateObj) {\n  const thaiDays = [\"อาทิตย์\", \"จันทร์\", \"อังคาร\", \"พุธ\", \"พฤหัสบดี\", \"ศุกร์\", \"เสาร์\"];\n  const thaiMonths = [\n    \"มกราคม\", \"กุมภาพันธ์\", \"มีนาคม\", \"เมษายน\", \"พฤษภาคม\", \"มิถุนายน\",\n    \"กรกฎาคม\", \"สิงหาคม\", \"กันยายน\", \"ตุลาคม\", \"พฤศจิกายน\", \"ธันวาคม\"\n  ];\n  const dayName = `วัน${thaiDays[dateObj.getDay()]}`;\n  const day = dateObj.getDate();\n  const monthName = thaiMonths[dateObj.getMonth()];\n  const yearBE = dateObj.getFullYear() + 543;\n  return `${dayName} ${day} ${monthName} ${yearBE}`;\n}\n\nconst today = new Date();\nconst currentDay = today.getDay();\nconst offsetToMonday = (currentDay + 6) % 7;\nconst monday = new Date(today);\nmonday.setDate(today.getDate() - offsetToMonday);\n\nconst weekDates = Array.from({ length: 7 }).map((_, i) => {\n  const d = new Date(monday);\n  d.setDate(monday.getDate() + i);\n  return d;\n});\n\nconst eventsByDate = {};\nevents.forEach(event => {\n  if (!event.start || !event.start.dateTime) return;\n  const date = event.start.dateTime.split(\"T\")[0];\n  if (!eventsByDate[date]) eventsByDate[date] = [];\n  eventsByDate[date].push(event);\n});\n\nevents.forEach(event => {\n  const desc = (event.description || \"\").toLowerCase();\n  const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;\n\n  if (desc.includes(\"เลื่อน\")) {\n    countPostponed++;\n    event.status = \"postponed\";\n  } else if (endTime && endTime < now) {\n    countDone++;\n    event.status = \"done\";\n  } else {\n    countPending++;\n    event.status = \"pending\";\n  }\n});\n\nconst noEventsBox = {\n  type: \"box\",\n  layout: \"vertical\",\n  margin: \"md\",\n  paddingAll: \"12px\",\n  cornerRadius: \"md\",\n  backgroundColor: \"#28a745\",\n  contents: [{\n    type: \"text\",\n    text: \"สัปดาห์นี้ไม่มีนัดหมาย\",\n    weight: \"bold\",\n    size: \"md\",\n    color: \"#FFFFFF\",\n    align: \"center\"\n  }]\n};\n\nlet flexContents;\n\nif (events.length === 0) {\n  flexContents = {\n    type: \"bubble\",\n    size: \"mega\",\n    body: {\n      type: \"box\",\n      layout: \"vertical\",\n      contents: [\n        { type: \"text\", text: \"📅 ตารางนัดหมาย 7 วัน\", size: \"lg\", weight: \"bold\", margin: \"none\" },\n        { type: \"separator\", margin: \"md\" },\n        noEventsBox\n      ]\n    }\n  };\n} else {\n  const headerRow = {\n    type: \"box\",\n    layout: \"horizontal\",\n    spacing: \"sm\",\n    contents: [\n      { type: \"text\", text: \"📌 หัวข้อ\", weight: \"bold\", size: \"sm\", flex: 3 },\n      { type: \"text\", text: \"🕒 เวลา\", weight: \"bold\", size: \"sm\", flex: 2 }\n    ]\n  };\n\n  const rows = weekDates.flatMap((dateObj, dayIndex) => {\n    const isoDate = dateObj.toISOString().split(\"T\")[0];\n    const dayHeader = {\n      type: \"box\",\n      layout: \"horizontal\",\n      spacing: \"sm\",\n      margin: dayIndex === 0 ? \"md\" : \"md\",\n      contents: [{\n        type: \"text\",\n        text: formatThaiFullDate(dateObj),\n        weight: \"bold\",\n        size: \"sm\",\n        flex: 5\n      }]\n    };\n\n    const eventsForDay = eventsByDate[isoDate] || [];\n\n    let section = [dayHeader];\n\n    if (eventsForDay.length === 0) {\n      section.push({\n        type: \"box\",\n        layout: \"horizontal\",\n        spacing: \"sm\",\n        margin: \"sm\",\n        contents: [{\n          type: \"text\",\n          text: \"ไม่มีการนัดหมาย\",\n          size: \"xs\",\n          color: \"#999999\",\n          wrap: true,\n          flex: 5\n        }]\n      });\n    } else {\n      eventsForDay.forEach((event, idx) => {\n        const timeStart = event.start?.dateTime ? event.start.dateTime.split(\"T\")[1].substring(0, 5) : \"\";\n        const timeEnd = event.end?.dateTime ? event.end.dateTime.split(\"T\")[1].substring(0, 5) : \"\";\n        const timeText = `${timeStart}${timeStart && timeEnd ? \"-\" + timeEnd : \"\"}`;\n\n        let statusSticker = \"\";\n        if (event.status === \"done\") statusSticker = \"✅\";\n        else if (event.status === \"pending\") statusSticker = \"⏳\";\n        else if (event.status === \"postponed\") statusSticker = \"🔄\";\n\n        const mainRow = {\n          type: \"box\",\n          layout: \"horizontal\",\n          spacing: \"sm\",\n          margin: \"sm\",\n          contents: [\n            { type: \"text\", text: `${idx + 1}. ${statusSticker} ${event.summary || \"ไม่มีหัวข้อ\"}`, size: \"sm\", wrap: true, flex: 3 },\n            { type: \"text\", text: timeText, size: \"sm\", wrap: true, flex: 2 }\n          ]\n        };\n\n        const detailRow = {\n          type: \"box\",\n          layout: \"vertical\",\n          margin: \"sm\",\n          contents: [{\n            type: \"text\",\n            text: `📄 รายละเอียด: ${event.description || \"ไม่มี\"}`,\n            size: \"xs\",\n            wrap: true,\n            color: \"#555555\"\n          }]\n        };\n\n        section.push(mainRow, detailRow);\n      });\n    }\n\n    if (dayIndex < weekDates.length - 1) {\n      section.push({ type: \"separator\", margin: \"md\" });\n    }\n\n    return section;\n  });\n\n  const summaryBox = {\n    type: \"box\",\n    layout: \"vertical\",\n    margin: \"md\",\n    paddingAll: \"12px\",\n    cornerRadius: \"md\",\n    backgroundColor: \"#28a745\",\n    contents: [{\n      type: \"text\",\n      text: `📊 สรุป: เสร็จ ${countDone} | ค้าง ${countPending} | เลื่อน ${countPostponed}`,\n      weight: \"bold\",\n      size: \"sm\",\n      color: \"#FFFFFF\",\n      align: \"center\"\n    }]\n  };\n\n  flexContents = {\n    type: \"bubble\",\n    size: \"mega\",\n    body: {\n      type: \"box\",\n      layout: \"vertical\",\n      spacing: \"md\",\n      contents: [\n        { type: \"text\", text: \"📅 ตารางนัดหมาย 7 วัน\", size: \"lg\", weight: \"bold\", margin: \"none\" },\n        { type: \"separator\", margin: \"md\" },\n        headerRow,\n        { type: \"separator\", margin: \"md\" },\n        ...rows,\n        summaryBox\n      ]\n    }\n  };\n}\n\nconst flexMessage = {\n  type: \"flex\",\n  altText: events.length === 0 ? \"❌ สัปดาห์นี้ไม่มีนัดหมาย\" : \"📅 ตารางนัดหมายของคุณ\",\n  contents: flexContents\n};\n\n// ดึง userId จาก node ที่เหมาะสม (แก้ชื่อ node ให้ตรงกับของคุณ)\nconst userId = $node[\"Code : ดึง UserID, TimeMin, TimeMax, Week5\"].json.line_user_id;\n\nreturn [{\n  json: {\n    line_user_id: userId,\n    messages: [flexMessage]\n  }\n}];\n"
+      },
+      "id": "1fc02d06-4cb5-48b3-aafb-0c5f30f3f802",
+      "name": "Code : สร้าง Flex ตารางนัดหมาย",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1328,
+        896
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $node[\"Code : ดึง UserID, TimeMin, TimeMax, Week5\"].json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "28bcb39a-08a9-4662-b57b-04980a136044",
+      "name": "Execute a SQL query : ดึง access token7",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -1840,
+        896
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่ต้องทำ 4 (ใกล้เสร็จแล้ววว)\n- ทำปุ่มเลื่อนนัด /\n",
+        "height": 88,
+        "width": 420,
+        "color": 7
+      },
+      "id": "14cb2f4c-243a-47e0-b044-08024ba4478c",
+      "name": "Sticky Note9",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -464,
+        1040
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token \nFROM google_tokens\nWHERE line_user_id = '{{$json.line_user_id}}'\n  AND (created_at + INTERVAL expires_in SECOND) > NOW()\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "50fc0c41-e084-48b5-9a1f-492664b910db",
+      "name": "Execute a SQL query : Get Valid Access Token1",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -448,
+        1872
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events/{{$node[\"Execute a SQL query2\"].json.eventId}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"start\": {\n    \"dateTime\": \"{{ $node['Code : ครบ | ไม่ครบ'].json.startISO }}\"\n  },\n  \"end\": {\n    \"dateTime\": \"{{ $node['Code : ครบ | ไม่ครบ'].json.endISO }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "1692b011-ab02-41e5-9b9c-d25b5c219e8b",
+      "name": "HTTP Request : Update to Calendar",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -240,
+        1872
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $node['Code : Extract LINE User ID1'].json.line_user_id }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"✅ เลื่อนนัดเรียบร้อย!\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"✅ เลื่อนนัดเรียบร้อย!\",\n              \"weight\": \"bold\",\n              \"size\": \"lg\",\n              \"color\": \"#00B900\"\n            },\n            {\n              \"type\": \"text\",\n              \"text\": \"นัดใหม่วันที่ {{ $node['Code : ครบ | ไม่ครบ'].json.startISO.slice(0,10) }} \\n เวลา {{ $node['Code : ครบ | ไม่ครบ'].json.startISO.slice(11,16) }} - {{ $node['Code : ครบ | ไม่ครบ'].json.endISO.slice(11,16) }} 🕒\",\n              \"wrap\": true,\n              \"size\": \"md\"\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"horizontal\",\n          \"spacing\": \"sm\",\n          \"contents\": [\n            {\n              \"type\": \"button\",\n              \"style\": \"secondary\",\n              \"color\": \"#D32F2F\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"❌ ยกเลิกนัด\",\n                \"data\": \"action=cancel&eventId={{ $json.id }}\"\n              }\n            },\n            {\n              \"type\": \"button\",\n              \"style\": \"primary\",\n              \"color\": \"#2196F3\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"📅 ตารางสัปดาห์นี้\",\n                \"data\": \"action=request_week_schedule\"\n              }\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "3a9a3bbe-f2ea-4b86-a106-cb09d0ee7ea0",
+      "name": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -16,
+        1872
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================\n// 1️⃣ ดึงค่าจาก Node \"ล้าง format, แปลงเป็น ISO\"\n// ========================\nconst startISO = $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json.start_datetime \n              || $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json[\"เวลาเริ่ม\"] \n              || $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json[\"เวลาที่เริ่ม\"] \n              || null;\n\nconst endISO   = $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json.end_datetime \n              || $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json[\"เวลาสิ้นสุด\"] \n              || $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json[\"เวลาที่สิ้นสุด\"] \n              || null;\n\nconst title = $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json.title \n            || $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json[\"หัวข้อการนัดหมาย\"] \n            || \"\";\n\nconst description = $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json.description \n                 || $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json[\"รายละเอียดเพิ่มเติม\"] \n                 || \"\";\n\n// ========================\n// 2️⃣ ดึง AI Agent Output\n// ========================\nconst aiOutputRaw = $node[\"AI Agent\"].json.output || \"{}\";\nconst aiOutputClean = aiOutputRaw.replace(/```json|```|\\n/g, \"\").trim();\nlet aiOutput;\ntry {\n  aiOutput = JSON.parse(aiOutputClean);\n} catch (error) {\n  aiOutput = {};\n}\n\n// ========================\n// 3️⃣ จัดการวันที่ (วันนี้ / พรุ่งนี้ / raw date)\n// ========================\nconst now = new Date();\nlet day = null;\nlet month = null;\n\nconst textFromAI = aiOutput.text || \"\";\n\n// ตรวจสอบวันนี้ / พรุ่งนี้\nif (textFromAI.includes(\"วันนี้\")) {\n  day = now.getDate();\n  month = now.getMonth();\n} else if (textFromAI.includes(\"พรุ่งนี้\")) {\n  const tomorrow = new Date(now);\n  tomorrow.setDate(tomorrow.getDate() + 1);\n  day = tomorrow.getDate();\n  month = tomorrow.getMonth();\n} else {\n  // ใช้วันที่จาก Node ISO\n  const rawDate = $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json.date \n                || $node[\"Code : ล้าง format, แปลงเป็น ISO\"].json[\"วันที่\"] \n                || null;\n  if (rawDate) {\n    const parts = rawDate.split(/[-\\/]/); // รองรับ DD-MM หรือ DD/MM\n    day = parseInt(parts[0], 10);\n    month = parseInt(parts[1], 10) - 1; // JS month 0-11\n  } else {\n    // ถ้าไม่มีอะไร → ใช้วันนี้\n    day = now.getDate();\n    month = now.getMonth();\n  }\n}\n\n// สร้าง Date object ด้วยปีปัจจุบัน\nlet dt = new Date(now.getFullYear(), month, day);\n\n// ถ้าวันในอดีต → เพิ่มปี\nif (dt < now) {\n  dt.setFullYear(now.getFullYear() + 1);\n}\n\n// แปลงเป็น YYYY-MM-DD\nconst date = dt.toISOString().slice(0, 10);\n\n// ========================\n// 4️⃣ ดึง action จาก AI Agent\n// ========================\nconst actionFromAI = aiOutput.action || null;\n\n// ========================\n// 5️⃣ ส่งออก JSON ตาม action\n// ========================\nif (actionFromAI === 'incomplete') {\n  return [{ json: { action: \"incomplete\", startISO, endISO, date, title, description } }];\n}\n\nif (actionFromAI === 'create') {\n  return [{ json: { action: \"create\", startISO, endISO, date, title, description } }];\n}\n\nif (actionFromAI === 'reschedule') {\n  return [{ json: { action: \"reschedule\", startISO, endISO, date, title, description } }];\n}\n\n// ถ้าไม่เข้าเงื่อนไข → incomplete\nreturn [{ json: { action: \"incomplete\", startISO, endISO, date, title, description } }];\n"
+      },
+      "id": "070a9f96-6bae-4e4c-a7ad-01e716d50cee",
+      "name": "Code : ครบ | ไม่ครบ",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2288,
+        1856
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "b05e3b61-114c-4df4-9b2e-1251bb2ce518",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{$json[\"action\"]}}",
+                    "rightValue": "incomplete"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "incomplete"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "8304db0d-537d-4e53-9d05-b57d94e92b65",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{$json[\"action\"]}}",
+                    "rightValue": "reschedule"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reschedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "92e65772-a898-42ed-8d99-02175e6bfb27",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{$json[\"action\"]}}",
+                    "rightValue": "create"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "create"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "098b4894-8a94-4822-8d0c-1a27324ad45f",
+      "name": "Switch: action",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        -1920,
+        1840
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  if ($('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events && $('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events[0].source.userId) {\n    item.json.line_user_id = $('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events[0].source.userId;\n  } else {\n    item.json.line_user_id = \"empty\";\n  }\n  return item;\n});\n"
+      },
+      "id": "4a002ca8-2562-4dcb-94ec-5c775fba8bb4",
+      "name": "Code : Extract LINE User ID1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -672,
+        1872
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "",
+        "height": 240,
+        "width": 1232
+      },
+      "id": "57a454ef-c890-4ce0-b736-5afd9a9c1a5b",
+      "name": "Sticky Note11",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -3744,
+        2144
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhookOutput = $json; // Assuming input is webhook data JSON\n\n// ดึง userId จาก events[0].source.userId\nconst lineUserId = webhookOutput.body?.events?.[0]?.source?.userId || null;\n\n// ดึงข้อความ / postback data\nconst messageText = webhookOutput.body?.events?.[0]?.message?.text || \"\";\nconst postbackDataRaw = webhookOutput.body?.events?.[0]?.postback?.data || \"\";\n\n// ฟังก์ชันช่วยแปลง postback data\nfunction parsePostbackData(str) {\n  return str.split(\"&\").reduce((acc, part) => {\n    const [key, value] = part.split(\"=\");\n    acc[key] = decodeURIComponent(value || \"\");\n    return acc;\n  }, {});\n}\n\n// กำหนด action เริ่มต้น\nlet action = \"default\";\nlet text = \"\";\n\nif (postbackDataRaw) {\n  const postbackData = parsePostbackData(postbackDataRaw);\n  if (postbackData.action) {\n    action = postbackData.action;\n  }\n  text = postbackDataRaw; // เก็บ raw postback data เป็นข้อความ\n} else {\n  text = messageText.trim();\n  const lowerText = text.toLowerCase();\n\n  if (lowerText === \"ล่วงหน้า\") action = \"notify_early\";\n  else if (lowerText === \"ตรงเวลา\") action = \"notify_exact\";\n  else if (lowerText === \"เลื่อนนัด\") action = \"reschedule\";\n  else if (lowerText === \"ยกเลิกนัด\") action = \"cancel\";\n  else if (lowerText === \"แสดงตาราง\") action = \"request_schedule\";\n  else if (lowerText === \"ตารางสัปดาห์นี้\" ) {\n    action = \"request_week_schedule\";\n  }\n  else if (lowerText === \"ตารางวันนี้\" || lowerText === \"วันนี้\") {\n    action = \"request_today_schedule\";\n  }\n  else if (lowerText === \"ตารางพรุ่งนี้\" || lowerText === \"พรุ่งนี้\") {\n    action = \"request_tomorrow_schedule\";\n  }\n}\n\n// ส่งออกพร้อม userId\nreturn [\n  {\n    json: {\n      line_user_id: lineUserId,\n      action,\n      text\n    }\n  }\n];\n"
+      },
+      "id": "cdab35a6-171c-4bf1-bc37-bc360a970b4d",
+      "name": "Code : ตรวจสอบข้อความ",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -4960,
+        1056
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "a3dc88a8-9e2b-4101-aa63-0ad46d04c0f0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "notify_early"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "notify_early"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "04750984-a15b-4c6b-9f2c-27285634d3e9",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "notify_exact"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "notify_exact"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "b193f652-b8b8-4ebd-abc2-f7799066c1a0",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "reschedule"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "reschedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "b8c3bae3-f5fc-481a-9e1f-8fb1a1ab7cc5",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "cancel"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "cancel"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2d7f8df1-265d-46c1-97fc-a790e985be77",
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "request_schedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "request_schedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "0c33caf6-dc82-484d-89d3-dd597ed92d4b",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "request_week_schedule"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "request_week_schedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "318a2f88-90b2-41d7-afd2-18b6bd641507",
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "request_today_schedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "request_today_schedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00a5c9c8-ce7d-4f6c-b858-559e01ba8f77",
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "request_tomorrow_schedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "request_tomorrow_schedule"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "3b0613f2-5309-4f4a-8faf-c744ffe638f6",
+                    "operator": {
+                      "name": "filter.operator.equals",
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $node[\"Code : ตรวจสอบข้อความ2\"].json[\"action\"] }}",
+                    "rightValue": "default"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "default"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "33e2381f-cb07-41bd-944b-8b24812872cd",
+      "name": "Switch: Check action",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        -3216,
+        832
+      ],
+      "typeVersion": 3.2,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const userId = $('Webhook : รับข้อความการนัดหมายจาก user').first().json.body.events[0].source.userId\n\nconst after = $input.first().json.notifyAt;\n\nreturn [\n  {\n    json: {\n      userId,\n      after\n    }\n  }\n];\n"
+      },
+      "id": "6b5708ba-b61e-48bc-9624-e4671a3cb9f4",
+      "name": "Code : ดึง UserID3",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2624,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO user_event_status (userId, eventId)\nVALUES ('{{$node[\"Webhook : รับข้อความการนัดหมายจาก user\"].json.body.events[0].source.userId}}', '{{$node[\"HTTP Request : Create to Calendar1\"].json.id}}')\nON DUPLICATE KEY UPDATE\neventId = VALUES(eventId),\nupdated_at = CURRENT_TIMESTAMP;",
+        "options": {}
+      },
+      "id": "664787c0-58a1-497b-abc7-e7bb0c2f7c72",
+      "name": "Execute a SQL query : INSERT EventId",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -32,
+        2240
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT eventId \nFROM user_event_status \nWHERE userId = '{{$node[\"Webhook : รับข้อความการนัดหมายจาก user\"].json.body.events[0].source.userId}}'\nORDER BY updated_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "7fed1d80-aea1-46cb-a623-99f6fea21d99",
+      "name": "Execute a SQL query2",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -912,
+        1872
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## สิ่งที่ต้องทำ 5 (ใกล้เสร็จแล้ววว;-;)\n- ทำปุ่มแจ้งตรงเวลา\n- สามารถ พิมพ์ ยกเลิก, ขอตาราง, เลื่อนนัด \n- กรองคำว่าเป็น flex message หรือ message\n- จะตรวจสอบได้ยังไงว่างานนี้ เสร็จ, ยกเลิก, เลื่อน",
+        "height": 152,
+        "width": 420,
+        "color": 6
+      },
+      "id": "ff7b8121-69a7-4614-a2e7-f90cf32ba0d2",
+      "name": "Sticky Note10",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        16,
+        1040
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $node['Code : รับค่า UserID'].json.line_user_id }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"✅ เข้าสู่ระบบเรียบร้อย!\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"✅ เข้าสู่ระบบเรียบร้อย!\",\n              \"weight\": \"bold\",\n              \"size\": \"lg\",\n              \"color\": \"#00B900\"\n            },\n            {\n              \"type\": \"text\",\n              \"text\": \"สวัสดีคุณ {{ $node['Code : รับค่า UserID'].json.displayName }}! \\nคุณสามารถเริ่มใช้งานระบบได้แล้ว\",\n              \"wrap\": true,\n              \"size\": \"md\"\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"horizontal\",\n          \"spacing\": \"sm\",\n          \"contents\": [\n            {\n              \"type\": \"button\",\n              \"style\": \"primary\",\n              \"color\": \"#2196F3\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"📅 ดูตารางนัดของฉัน\",\n                \"data\": \"action=request_week_schedule\"\n              }\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "2f20d177-f98c-40c0-8ff8-b9bdd322da31",
+      "name": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว2",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2752,
+        2192
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ada7b911-6045-488c-9bfe-c99214110d2c",
+              "leftValue": "={{ $json.login }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3968,
+        880
+      ],
+      "id": "1b7c23ef-49ef-4c15-8aa5-2310fac26a1b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lineUserId = $node[\"Code : ตรวจสอบข้อความ\"].json.line_user_id;\nconst messageText = $node[\"Code : ตรวจสอบข้อความ\"].json.message_text;\n\nconst results = $node[\"SQL : ค้นหา userId ที่มีอยู่แล้ว\"].json;\n\nif (!results || Object.keys(results).length === 0) {\n  return [\n    {\n      json: {\n        login: false,\n        userId: lineUserId\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      login: true,\n      userId: lineUserId,\n      userData: results,\n      message_text: messageText\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4144,
+        880
+      ],
+      "id": "f346e136-fd40-4378-b960-88517e20b3cd",
+      "name": "ตรวจสอบการว่าซ้ำมั้ย"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $json.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"คุณยังไม่ได้เข้าสู่ระบบ\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"กรุณาเข้าสู่ระบบ Google เพื่อใช้งานค่ะ\",\n              \"wrap\": true\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"horizontal\",\n          \"contents\": [\n            {\n              \"type\": \"button\",\n              \"style\": \"primary\",\n              \"color\": \"#66c229\",\n              \"action\": {\n                \"type\": \"uri\",\n                \"label\": \"เข้าสู่ระบบ\",\n                \"uri\": \"https://logical-factor-464404-d1.web.app/connect-calendar.html\"\n              }\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "3df8159e-6c51-4056-85e8-200dfe9623e6",
+      "name": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว3",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -3776,
+        992
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token, refresh_token, expires_in\nFROM google_tokens\nWHERE line_user_id = '{{ $json[\"line_user_id\"] }}'\n  AND DATE_ADD(created_at, INTERVAL expires_in SECOND) > NOW()\nORDER BY created_at DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -4720,
+        1056
+      ],
+      "id": "10255f91-db04-4e62-9c37-5c1f29076957",
+      "name": "SQL : ค้นหา userId ที่มีอยู่แล้ว",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      line_user_id: $node[\"Code : ตรวจสอบข้อความ\"].json.line_user_id,\n      action: $node[\"Code : ตรวจสอบข้อความ\"].json.action,\n      text: $node[\"Code : ตรวจสอบข้อความ\"].json.text\n    }\n  }\n];"
+      },
+      "id": "ed77f2a0-901e-4088-a049-c7e35e57d50a",
+      "name": "Code : ตรวจสอบข้อความ2",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -3440,
+        864
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8d8bdb65-b324-4e05-9812-adf7b0a0da25",
+              "leftValue": "={{ $json.login }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -4352,
+        1056
+      ],
+      "id": "fab36db7-1207-43ee-ba14-36458126509b",
+      "name": "IF: Access Token Valid?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึงผลลัพธ์จาก MySQL Node\nconst results = $node[\"SQL : ค้นหา userId ที่มีอยู่แล้ว\"]?.items || []; // ถ้า undefined จะเป็น array ว่าง\n\nif (results.length === 0) {\n  // ไม่มี row → user ยังไม่ได้ login\n  return [\n    { json: { login: false, userId: $json[\"line_user_id\"] } }\n  ];\n} else {\n  // มี row → user login แล้ว\n  return [\n    { json: { \n        login: true, \n        userId: $json[\"line_user_id\"], \n        userData: results[0].json, \n        message_text: $json[\"message_text\"] \n      } \n    }\n  ];\n}\n"
+      },
+      "id": "6ce222bb-a6b2-4b9b-b2a0-52cadff852dc",
+      "name": "Code : True or False",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -4528,
+        1056
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "=application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "=564269152078-8amd2iqgc6o20294u2k97jngevian8lg.apps.googleusercontent.com"
+            },
+            {
+              "name": "client_secret",
+              "value": "=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"
+            },
+            {
+              "name": "grant_type",
+              "value": "=refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json[\"refresh_token\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "450b6b4f-6023-472c-9cb4-570b50096342",
+      "name": "HTTP Request1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -3984,
+        1248
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token, refresh_token\nFROM google_tokens\nWHERE line_user_id = '{{ $node[\"Code : ตรวจสอบข้อความ\"].json[\"line_user_id\"] }}'\nORDER BY created_at DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -4192,
+        1248
+      ],
+      "id": "cdd9d211-2bca-4692-9c79-ed7bceced10c",
+      "name": "SQL : ค้นหา userId ที่มีอยู่แล้ว1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE google_tokens\nSET access_token = '{{ $json[\"access_token\"] }}',\n    created_at = NOW(),\n    expires_in = 3599\nWHERE line_user_id = '{{ $node[\"Code : ตรวจสอบข้อความ\"].json[\"line_user_id\"] }}'\nORDER BY created_at DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -3776,
+        1248
+      ],
+      "id": "206070b6-f4ea-4b50-8a95-20b605319fd9",
+      "name": "SQL : บันทึก accessToken ใหม่",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ฟังก์ชันเติม timezone +07:00\nfunction addTimezone(isoString) {\n  return isoString + \"+07:00\";\n}\n\n// ดึงเวลาที่ผู้ใช้พิมพ์\nconst newStart = new Date(addTimezone($node[\"Code : ครบ | ไม่ครบ\"].json.startISO));\nconst newEnd = new Date(addTimezone($node[\"Code : ครบ | ไม่ครบ\"].json.endISO));\n\n// ดึงนัดจาก Google Calendar (HTTP Request Node)\nconst events = $node[\"HTTP Request : Is it exists\"].json.items || [];\n\n// ตรวจสอบว่ามี event ซ้อนเวลาไหม\nconst isDuplicate = events.some(event => {\n  const eventStart = new Date(event.start.dateTime);\n  const eventEnd = new Date(event.end.dateTime);\n  return (newStart < eventEnd && newEnd > eventStart);\n});\n\n// ส่งผลลัพธ์ไป Node ถัดไป (LINE Message)\nreturn [\n  {\n    json: {\n      isDuplicate,\n      message: isDuplicate\n        ? \"ไม่สามารถบันทึกได้ เนื่องจากวันนั้นมีนัดอยู่แล้ว\"\n        : \"สามารถเพิ่มนัดหมายได้\"\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        2064
+      ],
+      "id": "c9e7689f-8e27-4093-8314-4a10a0d6b629",
+      "name": "Code : ตรวจสอบเวลาที่ซ้ำ"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d17e6850-c388-42b8-948f-093bbc738bd0",
+              "leftValue": "={{$json.isDuplicate}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1120,
+        2064
+      ],
+      "id": "a02dd5aa-018c-458d-93fb-20bd6c932841",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $('Webhook : รับข้อความการนัดหมายจาก user').item.json.body.events[0].source.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"❌ ไม่สามารถนัดได้\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"size\": \"mega\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"❌ ไม่สามารถบันทึกนัดหมายได้\",\n              \"weight\": \"bold\",\n              \"size\": \"lg\",\n              \"wrap\": true\n            },\n            {\n              \"type\": \"text\",\n              \"text\": \"เนื่องจากช่วงเวลานี้มีนัดหมายอยู่แล้ว\",\n              \"wrap\": true\n            }\n          ]\n        },\n        \"footer\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"contents\": [\n            {\n              \"type\": \"button\",\n              \"style\": \"primary\",\n              \"color\": \"#1E90FF\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"📅 ตารางสัปดาห์นี้\",\n                \"data\": \"action=request_week_schedule\"\n              }\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "fd288f66-c322-4aa5-a44b-f6307f4a1011",
+      "name": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว4",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -912,
+        2016
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeMin",
+              "value": "={{ $json.timeMin }}"
+            },
+            {
+              "name": "timeMax",
+              "value": "={{ $json.timeMax }}"
+            },
+            {
+              "name": "singleEvents",
+              "value": "=true"
+            },
+            {
+              "name": "orderBy",
+              "value": "=startTime"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "59d73533-70c7-456e-bef3-fe987caed6cb",
+      "name": "HTTP Request : Is it exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1568,
+        2064
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{$node[\"Code : ตรวจสอบข้อความ2\"].json.line_user_id}}'\n  AND created_at + INTERVAL expires_in SECOND > NOW()\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "61759a4b-0fcb-4300-b225-18b7846036fe",
+      "name": "Execute a SQL query : Get Valid Access Token2",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -1760,
+        2064
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $json.line_user_id }}\",\n  \"messages\": [\n    {\n      \"type\": \"flex\",\n      \"altText\": \"เลือกตารางนัดหมาย\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"spacing\": \"md\",\n          \"borderColor\": \"#2196F3\",\n          \"borderWidth\": \"2px\",\n          \"cornerRadius\": \"md\",\n          \"backgroundColor\": \"#E3F2FD\",\n          \"contents\": [\n            {\n              \"type\": \"text\",\n              \"text\": \"📅 เลือกตารางนัดหมาย\",\n              \"weight\": \"bold\",\n              \"size\": \"lg\",\n              \"color\": \"#0D47A1\"\n            },\n            {\n              \"type\": \"button\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"ตารางวันนี้\",\n                \"data\": \"action=request_today_schedule\"\n              },\n              \"margin\": \"md\",\n              \"style\": \"primary\",\n              \"color\": \"#64B5F6\"\n            },\n            {\n              \"type\": \"button\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"ตารางพรุ่งนี้\",\n                \"data\": \"action=request_tomorrow_schedule\"\n              },\n              \"margin\": \"md\",\n              \"style\": \"primary\",\n              \"color\": \"#42A5F5\"\n            },\n            {\n              \"type\": \"button\",\n              \"action\": {\n                \"type\": \"postback\",\n                \"label\": \"ตารางสัปดาห์นี้\",\n                \"data\": \"action=request_week_schedule\"\n              },\n              \"margin\": \"md\",\n              \"style\": \"secondary\",\n              \"color\": \"#2196F3\"\n            }\n          ]\n        }\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "id": "b91e27be-0f2a-4059-91fd-d8bb62234c99",
+      "name": "HTTP Request : แจ้งสถานะกับ User3",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2896,
+        800
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "to",
+              "value": "={{$json.line_user_id}}"
+            },
+            {
+              "name": "messages",
+              "value": "={{$json.messages}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8572ede1-b2a4-4d07-905f-d47625eed1c1",
+      "name": "HTTP Request2 : ข้อความเตือน user",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1088,
+        1168
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "70b2c510-02e6-42d4-ad5a-d5611b0021d6",
+      "name": "Execute a SQL query : ดึง access token8",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -2624,
+        1248
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeMin",
+              "value": "={{$node[\"Code : ดึง UserID, TimeMin, TimeMax, Week\"].json.timeMin}}"
+            },
+            {
+              "name": "timeMax",
+              "value": "={{$node[\"Code : ดึง UserID, TimeMin, TimeMax, Week\"].json.timeMax}}"
+            },
+            {
+              "name": "singleEvents",
+              "value": "true"
+            },
+            {
+              "name": "orderBy",
+              "value": "startTime"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0a6e6131-4951-4d3b-b184-0b4ff57254a4",
+      "name": "HTTP Request : GetAll to Calendar5",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1584,
+        1168
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "d7f79a14-5a4f-45c5-b020-b5f8e34b48db",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{$node[\"HTTP Request : GetAll to Calendar6\"].json[\"items\"] ? $node[\"HTTP Request : GetAll to Calendar6\"].json[\"items\"].length : 0}}\n",
+              "rightValue": "=0"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "9cbc6f0d-8842-44b6-8830-962c6a480a2d",
+      "name": "If : ตรวจสอบมีนัดหรือไม่มี1",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -2096,
+        1248
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={{ $node['Code : ดึง UserID, TimeMin, TimeMax, Week'].json.timeMin }}&timeMax={{ $node['Code : ดึง UserID, TimeMin, TimeMax, Week'].json.timeMax }}&singleEvents=true&orderBy=startTime",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "77d86d34-3b6f-4932-97d0-ea57e57fd3ba",
+      "name": "HTTP Request : GetAll to Calendar6",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2336,
+        1248
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event จาก Webhook Node ที่ชื่อ 'Webhook : รับข้อความการนัดหมายจาก user'\nconst webhook = $('Webhook : รับข้อความการนัดหมายจาก user').first();\n\nlet userId = \"empty\";\nif (webhook?.json?.body?.events && webhook.json.body.events[0]?.source?.userId) {\n  userId = webhook.json.body.events[0].source.userId;\n}\n\n// คำนวณวันเริ่มต้นและสิ้นสุดของวันนี้\nconst now = new Date();\n\nconst startOfDay = new Date(now);\nstartOfDay.setHours(0, 0, 0, 0);\n\nconst endOfDay = new Date(now);\nendOfDay.setHours(23, 59, 59, 999);\n\n// คืนค่าผลลัพธ์ให้ n8n\nreturn [{\n  json: {\n    line_user_id: userId,\n    timeMin: startOfDay.toISOString(),\n    timeMax: endOfDay.toISOString(),\n  }\n}];\n"
+      },
+      "id": "7fcce2bd-7c5d-4748-80bb-ae477c237261",
+      "name": "Code : ดึง UserID, TimeMin, TimeMax, Week",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2896,
+        1248
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $('Webhook : รับข้อความการนัดหมายจาก user').item.json.body.events[0].source.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"❌📆ไม่มีนัดหมายภายในวันนี้ค่ะ\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "d28fdfe7-da5d-4339-9449-38679a9416fa",
+      "name": "HTTP Request : ไม่มีกิจกรรมนัดหมายใน week นี้1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1840,
+        1360
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event list จาก response Google Calendar API\nconst calendarResponse = $node[\"HTTP Request : GetAll to Calendar5\"].json;\nconst events = calendarResponse.items || [];  // ถ้าไม่มี items ให้เป็น []\n\nconst now = new Date();\n\nlet countDone = 0;\nlet countPending = 0;\nlet countPostponed = 0;\n\nfunction formatThaiFullDate(dateObj) {\n  const thaiDays = [\"อาทิตย์\", \"จันทร์\", \"อังคาร\", \"พุธ\", \"พฤหัสบดี\", \"ศุกร์\", \"เสาร์\"];\n  const thaiMonths = [\n    \"มกราคม\", \"กุมภาพันธ์\", \"มีนาคม\", \"เมษายน\", \"พฤษภาคม\", \"มิถุนายน\",\n    \"กรกฎาคม\", \"สิงหาคม\", \"กันยายน\", \"ตุลาคม\", \"พฤศจิกายน\", \"ธันวาคม\"\n  ];\n  const dayName = `วัน${thaiDays[dateObj.getDay()]}`;\n  const day = dateObj.getDate();\n  const monthName = thaiMonths[dateObj.getMonth()];\n  const yearBE = dateObj.getFullYear() + 543;\n  return `${dayName} ${day} ${monthName} ${yearBE}`;\n}\n\n// จัดกลุ่ม events ตามวันที่\nconst eventsByDate = {};\nevents.forEach(event => {\n  if (!event.start || !event.start.dateTime) return;\n  const date = event.start.dateTime.split(\"T\")[0];\n  if (!eventsByDate[date]) eventsByDate[date] = [];\n  eventsByDate[date].push(event);\n});\n\n// กำหนด status\nevents.forEach(event => {\n  const desc = (event.description || \"\").toLowerCase();\n  const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;\n\n  if (desc.includes(\"เลื่อน\")) {\n    countPostponed++;\n    event.status = \"postponed\";\n  } else if (endTime && endTime < now) {\n    countDone++;\n    event.status = \"done\";\n  } else {\n    countPending++;\n    event.status = \"pending\";\n  }\n});\n\n// เตรียม Flex Message สำหรับวันนี้\nconst today = new Date();\nconst isoToday = today.toISOString().split(\"T\")[0];\nconst eventsForToday = eventsByDate[isoToday] || [];\n\nconst noEventsBox = {\n  type: \"box\",\n  layout: \"vertical\",\n  margin: \"md\",\n  paddingAll: \"12px\",\n  cornerRadius: \"md\",\n  backgroundColor: \"#28a745\",\n  contents: [{\n    type: \"text\",\n    text: \"วันนี้ไม่มีนัดหมาย\",\n    weight: \"bold\",\n    size: \"md\",\n    color: \"#FFFFFF\",\n    align: \"center\"\n  }]\n};\n\nlet flexContents;\n\nconst headerRow = {\n  type: \"box\",\n  layout: \"horizontal\",\n  spacing: \"sm\",\n  contents: [\n    { type: \"text\", text: \"📌 หัวข้อ\", weight: \"bold\", size: \"sm\", flex: 3 },\n    { type: \"text\", text: \"🕒 เวลา\", weight: \"bold\", size: \"sm\", flex: 2 }\n  ]\n};\n\nif (eventsForToday.length === 0) {\n  flexContents = {\n    type: \"bubble\",\n    size: \"mega\",\n    body: {\n      type: \"box\",\n      layout: \"vertical\",\n      contents: [\n        { type: \"text\", text: `📅 ตารางนัดหมายวันนี้ \\n(${formatThaiFullDate(today)})`, size: \"lg\", weight: \"bold\", margin: \"none\" },\n        { type: \"separator\", margin: \"md\" },\n        noEventsBox\n      ]\n    }\n  };\n} else {\n  const rows = eventsForToday.map((event, idx) => {\n    const timeStart = event.start?.dateTime ? event.start.dateTime.split(\"T\")[1].substring(0, 5) : \"\";\n    const timeEnd = event.end?.dateTime ? event.end.dateTime.split(\"T\")[1].substring(0, 5) : \"\";\n    const timeText = `${timeStart}${timeStart && timeEnd ? \"-\" + timeEnd : \"\"}`;\n\n    let statusSticker = \"\";\n    if (event.status === \"done\") statusSticker = \"✅\";\n    else if (event.status === \"pending\") statusSticker = \"⏳\";\n    else if (event.status === \"postponed\") statusSticker = \"🔄\";\n\n    const mainRow = {\n      type: \"box\",\n      layout: \"horizontal\",\n      spacing: \"sm\",\n      margin: \"sm\",\n      contents: [\n        { type: \"text\", text: `${idx + 1}. ${statusSticker} ${event.summary || \"ไม่มีหัวข้อ\"}`, size: \"sm\", wrap: true, flex: 3 },\n        { type: \"text\", text: timeText, size: \"sm\", wrap: true, flex: 2 }\n      ]\n    };\n\n    const detailRow = {\n      type: \"box\",\n      layout: \"vertical\",\n      margin: \"sm\",\n      contents: [{\n        type: \"text\",\n        text: `📄 รายละเอียด: ${event.description || \"ไม่มี\"}`,\n        size: \"xs\",\n        wrap: true,\n        color: \"#555555\"\n      }]\n    };\n\n    return [mainRow, detailRow];\n  }).flat();\n\n  const summaryBox = {\n    type: \"box\",\n    layout: \"vertical\",\n    margin: \"md\",\n    paddingAll: \"12px\",\n    cornerRadius: \"md\",\n    backgroundColor: \"#28a745\",\n    contents: [{\n      type: \"text\",\n      text: `📊 สรุป: เสร็จ ${countDone} | ค้าง ${countPending} | เลื่อน ${countPostponed}`,\n      weight: \"bold\",\n      size: \"sm\",\n      color: \"#FFFFFF\",\n      align: \"center\"\n    }]\n  };\n\n  flexContents = {\n  type: \"bubble\",\n  size: \"mega\",\n  body: {\n    type: \"box\",\n    layout: \"vertical\",\n    spacing: \"md\",\n    contents: [\n      {\n        type: \"text\",\n        text: \"📅 ตารางนัดหมายวันนี้\",\n        size: \"lg\",\n        weight: \"bold\",\n        align: \"start\",\n        margin: \"none\"\n      },\n      {\n        type: \"text\",\n        text: `🗓️ ${formatThaiFullDate(today)}`,\n        size: \"sm\",\n        color: \"#666666\",\n        margin: \"xs\"\n      },\n      { type: \"separator\", margin: \"md\" },\n      headerRow,\n      { type: \"separator\", margin: \"md\" },\n      ...rows,\n      summaryBox\n    ]\n  }\n};\n\n}\n\nconst flexMessage = {\n  type: \"flex\",\n  altText: eventsForToday.length === 0 ? \"❌ วันนี้ไม่มีนัดหมาย\" : \"📅 ตารางนัดหมายวันนี้\",\n  contents: flexContents\n};\n\n// ดึง userId จาก node ที่เหมาะสม\nconst userId = $node[\"Code : ดึง UserID, TimeMin, TimeMax, Week\"].json.line_user_id;\n\nreturn [{\n  json: {\n    line_user_id: userId,\n    messages: [flexMessage]\n  }\n}];\n"
+      },
+      "id": "8b43eefb-4729-4749-86c6-d66e231189c4",
+      "name": "Code : สร้าง Flex ตารางนัดหมาย1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1328,
+        1168
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $node[\"Code : ดึง UserID, TimeMin, TimeMax, Week\"].json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "0b2a6b8f-6db3-4680-a0f1-61cbed16137b",
+      "name": "Execute a SQL query : ดึง access token9",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -1840,
+        1200
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "to",
+              "value": "={{$json.line_user_id}}"
+            },
+            {
+              "name": "messages",
+              "value": "={{$json.messages}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "856f1a69-6a52-484d-a8c9-f8c6cfbd249d",
+      "name": "HTTP Request2 : ข้อความเตือน user1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1088,
+        1488
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;",
+        "options": {}
+      },
+      "id": "645f4264-b775-41a8-96ea-840bf8730584",
+      "name": "Execute a SQL query : ดึง access token10",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -2624,
+        1568
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeMin",
+              "value": "={{$node[\"Code : ดึง UserID, TimeMin, TimeMax, Week1\"].json.timeMin}}"
+            },
+            {
+              "name": "timeMax",
+              "value": "={{$node[\"Code : ดึง UserID, TimeMin, TimeMax, Week1\"].json.timeMax}}"
+            },
+            {
+              "name": "singleEvents",
+              "value": "true"
+            },
+            {
+              "name": "orderBy",
+              "value": "startTime"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2b20dc62-a06e-4435-9411-10b5c4252350",
+      "name": "HTTP Request : GetAll to Calendar7",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1584,
+        1488
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "d7f79a14-5a4f-45c5-b020-b5f8e34b48db",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{$node[\"HTTP Request : GetAll to Calendar8\"].json[\"items\"] ? $node[\"HTTP Request : GetAll to Calendar8\"].json[\"items\"].length : 0}}\n",
+              "rightValue": "=0"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "4f107071-6831-4c0d-a2e4-337f99ac0558",
+      "name": "If : ตรวจสอบมีนัดหรือไม่มี2",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -2096,
+        1568
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={{ $node['Code : ดึง UserID, TimeMin, TimeMax, Week1'].json.timeMin }}&timeMax={{ $node['Code : ดึง UserID, TimeMin, TimeMax, Week1'].json.timeMax }}&singleEvents=true&orderBy=startTime",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "31cc10f3-9407-4040-965d-616e03554276",
+      "name": "HTTP Request : GetAll to Calendar8",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -2336,
+        1568
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event จาก Webhook Node ที่ชื่อ 'Webhook : รับข้อความการนัดหมายจาก user'\nconst webhook = $('Webhook : รับข้อความการนัดหมายจาก user').first();\n\nlet userId = \"empty\";\nif (webhook?.json?.body?.events && webhook.json.body.events[0]?.source?.userId) {\n  userId = webhook.json.body.events[0].source.userId;\n}\n\n// คำนวณวันเริ่มต้นและสิ้นสุดของวันพรุ่งนี้\nconst now = new Date();\n\nconst tomorrow = new Date(now);\ntomorrow.setDate(now.getDate() + 1);\n\nconst startOfTomorrow = new Date(tomorrow);\nstartOfTomorrow.setHours(0, 0, 0, 0);\n\nconst endOfTomorrow = new Date(tomorrow);\nendOfTomorrow.setHours(23, 59, 59, 999);\n\n// คืนค่าผลลัพธ์ให้ n8n\nreturn [{\n  json: {\n    line_user_id: userId,\n    timeMin: startOfTomorrow.toISOString(),\n    timeMax: endOfTomorrow.toISOString(),\n  }\n}];\n"
+      },
+      "id": "2efb2668-f48a-48bf-bea7-efdfe8eb7851",
+      "name": "Code : ดึง UserID, TimeMin, TimeMax, Week1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -2896,
+        1568
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer /YvCzlZ7yFmM8Y2nswOoKbDSyOLKm81Jz7DYvv2jlt6iBl/08OV3S6gWiA609Hy5TS7AxyQCpz07osiyxMrOQZycoYxB5nzGN4CgGaIiOEfawIRi9HRE58bXUtGeG/D1nrBkFvfmB6BqgbvgYj3eVQdB04t89/1O/w1cDnyilFU="
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $('Webhook : รับข้อความการนัดหมายจาก user').item.json.body.events[0].source.userId }}\",\n  \"messages\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"❌📆ไม่มีนัดหมายภายในพรุ่งนี้นี้ค่ะ\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "17515181-ed29-4a65-9bfb-2927126dd8ba",
+      "name": "HTTP Request : ไม่มีกิจกรรมนัดหมายใน week นี้2",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -1840,
+        1680
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// ดึง event list จาก response Google Calendar API\nconst calendarResponse = $node[\"HTTP Request : GetAll to Calendar7\"].json;\nconst events = calendarResponse.items || [];\nconst now = new Date();\n\nlet countDone = 0;\nlet countPending = 0;\nlet countPostponed = 0;\n\nfunction formatThaiFullDate(dateObj) {\n  const thaiDays = [\"อาทิตย์\",\"จันทร์\",\"อังคาร\",\"พุธ\",\"พฤหัสบดี\",\"ศุกร์\",\"เสาร์\"];\n  const thaiMonths = [\n    \"มกราคม\",\"กุมภาพันธ์\",\"มีนาคม\",\"เมษายน\",\"พฤษภาคม\",\"มิถุนายน\",\n    \"กรกฎาคม\",\"สิงหาคม\",\"กันยายน\",\"ตุลาคม\",\"พฤศจิกายน\",\"ธันวาคม\"\n  ];\n  const dayName = `วัน${thaiDays[dateObj.getDay()]}`;\n  const day = dateObj.getDate();\n  const monthName = thaiMonths[dateObj.getMonth()];\n  const yearBE = dateObj.getFullYear() + 543;\n  return `${dayName} ${day} ${monthName} ${yearBE}`;\n}\n\n// ดึง userId จาก Node ก่อนหน้า\nconst userId = $node[\"Code : ดึง UserID, TimeMin, TimeMax, Week1\"].json.line_user_id;\n\n// คำนวณวันพรุ่งนี้\nconst tomorrow = new Date();\ntomorrow.setDate(tomorrow.getDate() + 1);\nconst isoTomorrow = tomorrow.toISOString().split(\"T\")[0];\n\n// จัดกลุ่ม events ตามวันที่\nconst eventsByDate = {};\nevents.forEach(event => {\n  if (!event.start || !event.start.dateTime) return;\n  const date = event.start.dateTime.split(\"T\")[0];\n  if (!eventsByDate[date]) eventsByDate[date] = [];\n  eventsByDate[date].push(event);\n});\n\nconst eventsForTomorrow = eventsByDate[isoTomorrow] || [];\n\n// กำหนด status\neventsForTomorrow.forEach(event => {\n  const desc = (event.description || \"\").toLowerCase();\n  const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;\n\n  if (desc.includes(\"เลื่อน\")) {\n    countPostponed++;\n    event.status = \"postponed\";\n  } else if (endTime && endTime < now) {\n    countDone++;\n    event.status = \"done\";\n  } else {\n    countPending++;\n    event.status = \"pending\";\n  }\n});\n\nconst noEventsBox = {\n  type: \"box\",\n  layout: \"vertical\",\n  margin: \"md\",\n  paddingAll: \"12px\",\n  cornerRadius: \"md\",\n  backgroundColor: \"#28a745\",\n  contents: [{\n    type: \"text\",\n    text: \"พรุ่งนี้ไม่มีนัดหมาย\",\n    weight: \"bold\",\n    size: \"md\",\n    color: \"#FFFFFF\",\n    align: \"center\"\n  }]\n};\n\nlet flexContents;\n\nif (eventsForTomorrow.length === 0) {\n  flexContents = {\n    type: \"bubble\",\n    size: \"mega\",\n    body: {\n      type: \"box\",\n      layout: \"vertical\",\n      contents: [\n        { type: \"text\", text: `📅 ตารางนัดหมายพรุ่งนี้ (${formatThaiFullDate(tomorrow)})`, size: \"lg\", weight: \"bold\", margin: \"none\" },\n        { type: \"separator\", margin: \"md\" },\n        noEventsBox\n      ]\n    }\n  };\n} else {\n  const rows = eventsForTomorrow.map((event, idx) => {\n    const timeStart = event.start?.dateTime ? event.start.dateTime.split(\"T\")[1].substring(0,5) : \"\";\n    const timeEnd = event.end?.dateTime ? event.end.dateTime.split(\"T\")[1].substring(0,5) : \"\";\n    const timeText = `${timeStart}${timeStart && timeEnd ? \"-\" + timeEnd : \"\"}`;\n\n    let statusSticker = \"\";\n    if (event.status === \"done\") statusSticker = \"✅\";\n    else if (event.status === \"pending\") statusSticker = \"⏳\";\n    else if (event.status === \"postponed\") statusSticker = \"🔄\";\n\n    return [\n      {\n        type: \"box\",\n        layout: \"horizontal\",\n        spacing: \"sm\",\n        margin: \"sm\",\n        contents: [\n          { type: \"text\", text: `${idx+1}. ${statusSticker} ${event.summary || \"ไม่มีหัวข้อ\"}`, size: \"sm\", wrap: true, flex: 3 },\n          { type: \"text\", text: timeText, size: \"sm\", wrap: true, flex: 2 }\n        ]\n      },\n      {\n        type: \"box\",\n        layout: \"vertical\",\n        margin: \"sm\",\n        contents: [{\n          type: \"text\",\n          text: `📄 รายละเอียด: ${event.description || \"ไม่มี\"}`,\n          size: \"xs\",\n          wrap: true,\n          color: \"#555555\"\n        }]\n      }\n    ];\n  }).flat();\n\n  const summaryBox = {\n    type: \"box\",\n    layout: \"vertical\",\n    margin: \"md\",\n    paddingAll: \"12px\",\n    cornerRadius: \"md\",\n    backgroundColor: \"#28a745\",\n    contents: [{\n      type: \"text\",\n      text: `📊 สรุป: เสร็จ ${countDone} | ค้าง ${countPending} | เลื่อน ${countPostponed}`,\n      weight: \"bold\",\n      size: \"sm\",\n      color: \"#FFFFFF\",\n      align: \"center\"\n    }]\n  };\n\n  flexContents = {\n  type: \"bubble\",\n  size: \"mega\",\n  body: {\n    type: \"box\",\n    layout: \"vertical\",\n    spacing: \"md\",\n    contents: [\n      {\n        type: \"text\",\n        text: \"📅 ตารางนัดหมายพรุ่งนี้\",\n        size: \"lg\",\n        weight: \"bold\",\n        align: \"start\",\n        margin: \"none\"\n      },\n      {\n        type: \"text\",\n        text: formatThaiFullDate(tomorrow),\n        size: \"sm\",\n        color: \"#666666\",\n        margin: \"xs\"\n      },\n      { type: \"separator\", margin: \"md\" },\n      ...rows,\n      summaryBox\n    ]\n  }\n};\n\n}\n\nconst flexMessage = {\n  type: \"flex\",\n  altText: eventsForTomorrow.length === 0 ? \"❌ พรุ่งนี้ไม่มีนัดหมาย\" : \"📅 ตารางนัดหมายพรุ่งนี้\",\n  contents: flexContents\n};\n\nreturn [{\n  json: {\n    line_user_id: userId,\n    messages: [flexMessage]\n  }\n}];\n"
+      },
+      "id": "eeba04e6-ccf4-4507-a4d5-e9b24633db46",
+      "name": "Code : สร้าง Flex ตารางนัดหมาย2",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1328,
+        1488
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT access_token\nFROM google_tokens\nWHERE line_user_id = '{{ $node[\"Code : ดึง UserID, TimeMin, TimeMax, Week1\"].json.line_user_id }}'\nORDER BY created_at DESC\nLIMIT 1;\n",
+        "options": {}
+      },
+      "id": "6e9c2030-0695-4863-a708-10b82603c715",
+      "name": "Execute a SQL query : ดึง access token11",
+      "type": "n8n-nodes-base.mySql",
+      "position": [
+        -1840,
+        1488
+      ],
+      "typeVersion": 2.4,
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "OVDoy6fEqRRzhhWz",
+          "name": "MySQL account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook : รับข้อความการนัดหมายจาก user": [
+      {
+        "json": {
+          "body": {
+            "events": [
+              {
+                "mode": "active",
+                "type": "message",
+                "source": {
+                  "type": "user",
+                  "userId": "U5bfd068644dcb851b15936683fed14ad"
+                },
+                "message": {
+                  "id": "572874287728295955",
+                  "text": "วิธีการแจ้งนัดหมายของคุณ\n\n📄 หัวข้อ: เลี้ยงปลา\n📅 วันที่: 4 ส.ค. 68\n🕒 เวลา: 14.00-15.00\n📝 เพิ่มเติม: ไม่มี",
+                  "type": "text",
+                  "quoteToken": "nE7x-GtrES9Fr7rjpDvkCg64HneaPtp4Oofio9mg5LBe4rNobsbeW5d7oKlfr-IHSToUMjujYueUQGwrqOFUTGt_xGsUXBumhiUN9UpKwdRRqgMX8cPzFnDzfE_Oqu_sYvVLWVX5g56yUc05fZp74w"
+                },
+                "timestamp": 1754290988231,
+                "replyToken": "5880996a7e744f94b981d61393046044",
+                "webhookEventId": "01K1SY89NKAZX15X7VC6HM9TAV",
+                "deliveryContext": {
+                  "isRedelivery": false
+                }
+              }
+            ],
+            "destination": "U827d4139a24c201ea2b587bba1cf831c"
+          },
+          "query": {},
+          "params": {},
+          "headers": {
+            "host": "13c5122b3eb7.ngrok-free.app",
+            "user-agent": "LineBotWebhook/2.0",
+            "content-type": "application/json; charset=utf-8",
+            "content-length": "839",
+            "accept-encoding": "gzip",
+            "x-forwarded-for": "147.92.150.198",
+            "x-forwarded-host": "13c5122b3eb7.ngrok-free.app",
+            "x-line-signature": "Xcz6Zlnn+14Et+FlSKDv+gderA/IgX7IFI26g5ero6c=",
+            "x-forwarded-proto": "https"
+          },
+          "webhookUrl": "http://localhost:5678/webhook/bot-line",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code : ล้าง format, แปลงเป็น ISO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: action": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : ข้อมูลไม่ครบ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute a SQL query2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute a SQL query : Get Valid Access Token2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query2": {
+      "main": [
+        [
+          {
+            "node": "Code : Extract LINE User ID1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Check action": {
+      "main": [
+        [
+          {
+            "node": "Code : ดึง UserID, TimeMin, TimeMax1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code : ดึง UserID, TimeMin, TimeMax2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code : ดึง UserID, TimeMin, TimeMax3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code : ดึง UserID, TimeMin, TimeMax4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request : แจ้งสถานะกับ User3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code : ดึง UserID, TimeMin, TimeMax, Week5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code : ดึง UserID, TimeMin, TimeMax, Week",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code : ดึง UserID, TimeMin, TimeMax, Week1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : แจ้งสถานะกับ User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : แจ้งสถานะกับ User1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : แจ้งสถานะกับ User2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2 : ให้ user เขียนวันและเวลาส่งมาใหม่",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : Extract LINE User ID": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : Get Valid Access Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : Extract LINE User ID1": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : Get Valid Access Token1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : รับค่า UserID": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : Delete to Calendar": {
+      "main": [
+        [
+          {
+            "node": "Code : ดึง UserID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar": {
+      "main": [
+        [
+          {
+            "node": "Code : เลือก EventID ล่าสุด3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : Update to Calendar": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : Create to Calendar1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar1": {
+      "main": [
+        [
+          {
+            "node": "Code : เลือก EventID ล่าสุด1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar2": {
+      "main": [
+        [
+          {
+            "node": "Code : เลือก EventID ล่าสุด2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar3": {
+      "main": [
+        [
+          {
+            "node": "Code : สร้าง Flex ตารางนัดหมาย",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar4": {
+      "main": [
+        [
+          {
+            "node": "If : ตรวจสอบมีนัดหรือไม่มี",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : Update to Calendar1": {
+      "main": [
+        [
+          {
+            "node": "Code : ดึง UserID1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : Update to Calendar2": {
+      "main": [
+        [
+          {
+            "node": "Code : ดึง UserID2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ครบ | ไม่ครบ": {
+      "main": [
+        [
+          {
+            "node": "Switch: action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID, TimeMin, TimeMax1": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID, TimeMin, TimeMax2": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID, TimeMin, TimeMax3": {
+      "main": [
+        [
+          {
+            "node": "Code : ดึง UserID3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID, TimeMin, TimeMax4": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : Get Valid Access Token": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : Create to Calendar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : Get Valid Access Token1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : Update to Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : Update to Calendar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token4": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : Update to Calendar2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token5": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : Delete to Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token6": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token7": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID, TimeMin, TimeMax, Week5": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ตรวจสอบข้อความ": {
+      "main": [
+        [
+          {
+            "node": "SQL : ค้นหา userId ที่มีอยู่แล้ว",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : เลือก EventID ล่าสุด1": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : เลือก EventID ล่าสุด2": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : เลือก EventID ล่าสุด3": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ล้าง format, แปลงเป็น ISO": {
+      "main": [
+        [
+          {
+            "node": "Code : ครบ | ไม่ครบ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : สร้าง Flex ตารางนัดหมาย": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2 : ข้อความเตือน user4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook : รับข้อมูลการ Login จาก User": {
+      "main": [
+        [
+          {
+            "node": "Code : รับค่า UserID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If : ตรวจสอบมีนัดหรือไม่มี": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token7",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request : ไม่มีกิจกรรมนัดหมายใน week นี้",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : แจ้ง user ว่ารับทราบแล้ว": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : INSERT EventId",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook : รับข้อความการนัดหมายจาก user": {
+      "main": [
+        [
+          {
+            "node": "Code : ตรวจสอบข้อความ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code : ตรวจสอบข้อความ2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ตรวจสอบการว่าซ้ำมั้ย": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL : ค้นหา userId ที่มีอยู่แล้ว": {
+      "main": [
+        [
+          {
+            "node": "Code : True or False",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ตรวจสอบข้อความ2": {
+      "main": [
+        [
+          {
+            "node": "Switch: Check action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Access Token Valid?": {
+      "main": [
+        [
+          {
+            "node": "ตรวจสอบการว่าซ้ำมั้ย",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SQL : ค้นหา userId ที่มีอยู่แล้ว1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : True or False": {
+      "main": [
+        [
+          {
+            "node": "IF: Access Token Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL : ค้นหา userId ที่มีอยู่แล้ว1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "SQL : บันทึก accessToken ใหม่",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL : บันทึก accessToken ใหม่": {
+      "main": [
+        [
+          {
+            "node": "Code : ตรวจสอบข้อความ2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ตรวจสอบเวลาที่ซ้ำ": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : แจ้ง user ว่ารับทราบแล้ว4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code : Extract LINE User ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : Is it exists": {
+      "main": [
+        [
+          {
+            "node": "Code : ตรวจสอบเวลาที่ซ้ำ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : Get Valid Access Token2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : Is it exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token8": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar5": {
+      "main": [
+        [
+          {
+            "node": "Code : สร้าง Flex ตารางนัดหมาย1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If : ตรวจสอบมีนัดหรือไม่มี1": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token9",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request : ไม่มีกิจกรรมนัดหมายใน week นี้1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar6": {
+      "main": [
+        [
+          {
+            "node": "If : ตรวจสอบมีนัดหรือไม่มี1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID, TimeMin, TimeMax, Week": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : สร้าง Flex ตารางนัดหมาย1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2 : ข้อความเตือน user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token9": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token10": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar7": {
+      "main": [
+        [
+          {
+            "node": "Code : สร้าง Flex ตารางนัดหมาย2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If : ตรวจสอบมีนัดหรือไม่มี2": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token11",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request : ไม่มีกิจกรรมนัดหมายใน week นี้2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request : GetAll to Calendar8": {
+      "main": [
+        [
+          {
+            "node": "If : ตรวจสอบมีนัดหรือไม่มี2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : ดึง UserID, TimeMin, TimeMax, Week1": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query : ดึง access token10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code : สร้าง Flex ตารางนัดหมาย2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2 : ข้อความเตือน user1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query : ดึง access token11": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request : GetAll to Calendar7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timezone": "Asia/Bangkok",
+    "errorWorkflow": "yMuBULTM8gyDHDcl",
+    "timeSavedPerExecution": 60
+  },
+  "versionId": "17fccf6d-e5e0-49f6-bd66-3660f86d77f1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "24b584c1fe385a5c477f849f51c07f45f154a8f5534fad6956a6445a888ec644"
+  },
+  "id": "yMuBULTM8gyDHDcl",
+  "tags": []
+}
