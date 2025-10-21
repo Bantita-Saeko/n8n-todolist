@@ -9,29 +9,30 @@
 
 DROP TABLE IF EXISTS `google_tokens`;
 CREATE TABLE `google_tokens` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `token_id` int NOT NULL AUTO_INCREMENT,
   `line_user_id` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   `access_token` text,
   `refresh_token` text,
   `expires_in` int DEFAULT NULL,
   `scope` text,
-  `token_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  `token_type` enum('access_token','refresh_token') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `id` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=40 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  PRIMARY KEY (`token_id`),
+  UNIQUE KEY `id` (`token_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 DROP TABLE IF EXISTS `user_event_status`;
 CREATE TABLE `user_event_status` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `userId` varchar(255) NOT NULL,
+  `line_user_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `eventId` varchar(255) NOT NULL,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=36 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
-
+INSERT INTO `user_event_status` (`id`, `line_user_id`, `eventId`, `updated_at`) VALUES
+(35, 'U5bfd068644dcb851b15936683fed14ad', 'sv6csje2b99plqsjg08rklqc88', '2025-10-16 03:51:06');
 
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
